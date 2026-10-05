@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Famio">
+<meta name="theme-color" content="#2f6fed">
+<title>Famio</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👨‍👩‍👧‍👦</text></svg>">
+<style>
+  :root{
+    --bg:#f4f6fb; --surface:#ffffff; --surface-2:#f0f3f9;
+    --text:#1a2233; --muted:#6a7488; --border:#e3e8f0;
+    --accent:#2f6fed; --accent-weak:#e7efff;
+    --green:#1f9d57; --green-weak:#e4f6ec;
+    --amber:#d98313; --amber-weak:#fdf0dd;
+    --red:#d64545; --red-weak:#fbe6e6;
+    --violet:#8a5cf6; --pink:#e26aa7;
+    --radius:16px; --shadow:0 2px 10px rgba(20,30,60,.06),0 8px 30px rgba(20,30,60,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f1420; --surface:#171d2b; --surface-2:#1f2638;
+      --text:#e8ecf5; --muted:#99a3b8; --border:#2a3346;
+      --accent:#5b8dfd; --accent-weak:#1c2740;
+      --green:#49c47d; --green-weak:#18312a;
+      --amber:#e0a44a; --amber-weak:#33281a;
+      --red:#ee6a6a; --red-weak:#331f22;
+      --violet:#a784ff; --pink:#f08cc0;
+      --shadow:0 2px 10px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.25);
+    }
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.45;padding-bottom:env(safe-area-inset-bottom)}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:16px}
+
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:14px 20px;padding-top:calc(14px + env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px}
+  .brand .logo{font-size:24px}
+  .topbar .spacer{flex:1}
+  .icon-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 11px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+  .icon-btn:hover{background:var(--surface-2)}
+
+  .nav{display:flex;gap:4px;padding:10px 16px 0;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;overflow-x:auto}
+  .nav button{border:none;background:none;color:var(--muted);font-weight:600;font-size:15px;padding:10px 14px;border-bottom:3px solid transparent;transition:.15s;white-space:nowrap}
+  .nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  main{max-width:1100px;margin:0 auto;padding:22px 20px 70px}
+  h2.section{font-size:15px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:26px 0 12px}
+  h2.section:first-child{margin-top:4px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
+  .member-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;text-align:center;transition:.15s;position:relative}
+  .member-card:hover{transform:translateY(-3px)}
+  .avatar{width:76px;height:76px;border-radius:50%;margin:0 auto 12px;object-fit:cover;background:linear-gradient(135deg,var(--accent),#7aa6ff);display:flex;align-items:center;justify-content:center;font-size:38px;color:#fff;overflow:hidden}
+  .avatar img{width:100%;height:100%;object-fit:cover}
+  .member-card .name{font-weight:700;font-size:16px}
+  .member-card .age{color:var(--muted);font-size:14px;margin-top:2px}
+  .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;margin-top:10px}
+  .chip.ok{background:var(--green-weak);color:var(--green)}
+  .chip.care{background:var(--amber-weak);color:var(--amber)}
+  .add-tile{border:2px dashed var(--border);border-radius:var(--radius);background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:160px;font-weight:600}
+  .add-tile:hover{border-color:var(--accent);color:var(--accent)}
+  .add-tile .plus{font-size:34px;line-height:1}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:16px 18px}
+  .stat .num{font-size:30px;font-weight:800;line-height:1}
+  .stat .lbl{color:var(--muted);font-size:13px;margin-top:6px;font-weight:600}
+  .stat.accent .num{color:var(--accent)} .stat.amber .num{color:var(--amber)} .stat.green .num{color:var(--green)} .stat.violet .num{color:var(--violet)}
+
+  .reminders{background:var(--amber-weak);border:1px solid var(--amber);border-radius:14px;padding:14px 16px;margin-bottom:18px}
+  .reminders h4{color:var(--amber);font-size:14px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+  .reminders .rem{display:flex;gap:8px;align-items:center;font-size:14px;padding:4px 0}
+  .reminders .rem.urgent{font-weight:700}
+
+  .back{background:none;border:none;color:var(--accent);font-weight:600;font-size:15px;margin-bottom:14px;display:inline-flex;gap:6px;align-items:center}
+  .profile-hero{display:flex;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;flex-wrap:wrap}
+  .profile-hero .avatar{width:88px;height:88px;font-size:42px;margin:0}
+  .profile-hero .h-name{font-size:22px;font-weight:700}
+  .profile-hero .h-sub{color:var(--muted);margin-top:2px}
+  .badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .badge{background:var(--surface-2);border-radius:10px;padding:6px 12px;font-size:13px}
+  .badge b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+  .badge.warn{background:var(--amber-weak);color:var(--amber)}
+
+  .tabs{display:flex;gap:4px;margin:20px 0 4px;border-bottom:1px solid var(--border);overflow-x:auto}
+  .tabs button{border:none;background:none;color:var(--muted);font-weight:600;font-size:15px;padding:10px 14px;border-bottom:3px solid transparent;white-space:nowrap}
+  .tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+  .card.left-accent{border-left:4px solid var(--accent)}
+  .card.left-amber{border-left:4px solid var(--amber)}
+  .card.left-green{border-left:4px solid var(--green)}
+  .card .row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .card h4{font-size:17px}
+  .card .date{color:var(--muted);font-size:13px;white-space:nowrap}
+  .card p.desc{color:var(--muted);font-size:14px;margin-top:6px}
+
+  .med{background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:8px}
+  .med .mname{font-weight:600}
+  .med .mdetail{color:var(--muted);font-size:13px;margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+  .rx-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .rx-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer}
+
+  .empty{text-align:center;color:var(--muted);padding:34px 16px}
+  .empty .big{font-size:40px;margin-bottom:8px}
+  .list-add{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .btn{border:none;border-radius:10px;padding:11px 16px;font-weight:600;font-size:14px;transition:.15s}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.soft{background:var(--accent-weak);color:var(--accent)}
+  .btn.ghost{background:var(--surface-2);color:var(--text)}
+  .btn.danger{background:var(--red-weak);color:var(--red)}
+  .btn.block{width:100%}
+  .btn.sm{padding:7px 12px;font-size:13px}
+  .mini-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+  .agenda-item{display:flex;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:14px;margin-bottom:10px}
+  .datebox{width:58px;min-width:58px;height:58px;border-radius:12px;background:var(--accent-weak);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .datebox .d{font-size:22px;font-weight:800;line-height:1}
+  .datebox .m{font-size:11px;text-transform:uppercase;font-weight:700;margin-top:2px}
+  .agenda-item .ai-title{font-weight:700}
+  .agenda-item .ai-sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .cat-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+  .cal-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .cal-head .title{font-size:20px;font-weight:800;text-transform:capitalize;flex:1;text-align:center}
+  .cal-nav{border:1px solid var(--border);background:var(--surface);border-radius:10px;width:40px;height:40px;font-size:18px;color:var(--text)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-dow{text-align:center;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:4px 0}
+  .cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:92px;padding:6px;display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:.12s;overflow:hidden}
+  .cal-cell:hover{border-color:var(--accent)}
+  .cal-cell.other{opacity:.4}
+  .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-weak) inset}
+  .cal-cell .dnum{font-size:13px;font-weight:700;align-self:flex-end}
+  .cal-ev{font-size:11px;font-weight:600;color:#fff;border-radius:5px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-more{font-size:10px;color:var(--muted);font-weight:700}
+  @media(max-width:620px){.cal-cell{min-height:64px}.cal-ev{font-size:0;padding:4px}}
+
+  .reftable{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .reftable th,.reftable td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);font-size:14px}
+  .reftable th{background:var(--surface-2);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .reftable tr:last-child td{border-bottom:none}
+
+  .bars{display:flex;align-items:flex-end;gap:8px;height:140px;padding:10px 4px 0}
+  .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .bar{width:70%;max-width:34px;background:var(--accent);border-radius:6px 6px 0 0;min-height:3px;transition:.2s;position:relative}
+  .bar span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--text)}
+  .bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
+
+  .overlay{position:fixed;inset:0;background:rgba(10,15,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+  @media(min-width:640px){.overlay{align-items:center;padding:20px}}
+  .modal{background:var(--surface);width:100%;max-width:540px;border-radius:20px 20px 0 0;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
+  @media(min-width:640px){.modal{border-radius:20px}}
+  .modal header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1}
+  .modal header h3{font-size:18px}
+  .modal .close{background:var(--surface-2);border:none;border-radius:8px;width:32px;height:32px;font-size:18px;color:var(--muted)}
+  .modal .body{padding:20px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text)}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+  .field textarea{resize:vertical;min-height:72px}
+  .field .hint{color:var(--muted);font-size:12px;margin-top:5px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:520px){.row2{grid-template-columns:1fr}}
+  .photo-pick{display:flex;align-items:center;gap:14px}
+  .photo-pick .avatar{width:64px;height:64px;font-size:30px;margin:0}
+  .modal footer{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface)}
+  .modal footer .btn{flex:1}
+  .setrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .setrow:last-child{border-bottom:none}
+  .setrow .st{font-weight:600}.setrow .sd{color:var(--muted);font-size:13px;margin-top:2px}
+
+  .ecard{border:2px solid var(--red);border-radius:14px;padding:16px;margin-bottom:14px}
+  .ecard h4{color:var(--red);display:flex;align-items:center;gap:8px}
+  .ecard .erow{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:14px}
+  .ecard .erow .k{color:var(--muted);min-width:120px;font-weight:600}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:600;z-index:80;box-shadow:var(--shadow);opacity:0;transition:.25s;pointer-events:none;max-width:90%}
+  .toast.show{opacity:1}
+  input[type=file]{display:none}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:8px}
+
+  /* Lock screen */
+  .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
+  .lock .logo{font-size:56px}
+  .lock h2{font-size:20px}
+  .lock input{font-size:28px;letter-spacing:10px;text-align:center;width:200px;padding:12px;border:2px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text)}
+  .lock input:focus{outline:none;border-color:var(--accent)}
+  .lock .err{color:var(--red);font-weight:600;height:20px}
+
+  @media print{
+    .topbar,.nav,main,.toast{display:none!important}
+    .overlay{position:static;background:none;display:block;padding:0}
+    .modal{box-shadow:none;max-height:none;max-width:none;border:none}
+    .modal header .close,.modal footer{display:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio</span></div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
+  <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
+  <button class="icon-btn" id="btnSaveFile" title="Enregistrer dans un fichier">💾</button>
+</div>
+<div class="nav">
+  <button data-view="home" class="active">👥 Famille</button>
+  <button data-view="health">🏥 Santé</button>
+  <button data-view="calendar">📅 Calendrier</button>
+</div>
+<main id="app"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- Stockage local (IndexedDB) ---------------- */
+const DB_NAME='familleDB', STORE='app', KEY='state';
+const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],settings:{}};
+let state=JSON.parse(JSON.stringify(EMPTY));
+
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+function idbGet(){return openDB().then(db=>new Promise((res,rej)=>{const t=db.transaction(STORE,'readonly').objectStore(STORE).get(KEY);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error);}));}
+function idbPut(v){return openDB().then(db=>new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite').objectStore(STORE).put(v,KEY);t.onsuccess=()=>res();t.onerror=()=>rej(t.error);}));}
+let masterPw=null, fileHandle=null;
+const hasSaveFSA=('showSaveFilePicker'in window), hasOpenFSA=('showOpenFilePicker'in window);
+async function saveState(){
+  if(masterPw==null)return;
+  try{
+    const pkg=await encryptPkg(state,masterPw);
+    await idbPut(pkg);
+    if(fileHandle){try{const w=await fileHandle.createWritable();await w.write(JSON.stringify(pkg));await w.close();}catch(e){console.warn('écriture fichier',e);}}
+  }catch(e){console.warn('Sauvegarde impossible',e);toast('⚠️ Sauvegarde impossible');}
+}
+
+/* ---------------- Utilitaires ---------------- */
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():'id'+Date.now()+Math.random().toString(16).slice(2));
+const MONTHS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const MONTHS_FULL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const DOW=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+function parseD(s){return s?new Date(s+'T00:00:00'):null;}
+function fmtDate(s){const d=parseD(s);if(!d)return'';return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
+function todayStr(){return ymd(new Date());}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function daysBetween(a,b){return Math.round((parseD(a)-parseD(b))/86400000);}
+function ageYears(dob){const b=parseD(dob);if(!b)return null;const n=new Date();let y=n.getFullYear()-b.getFullYear();const md=n.getMonth()-b.getMonth();if(md<0||(md===0&&n.getDate()<b.getDate()))y--;return y;}
+function ageText(dob){const b=parseD(dob);if(!b)return'';let y=ageYears(dob);if(y<2){const n=new Date();let m=(n.getFullYear()-b.getFullYear())*12+(n.getMonth()-b.getMonth());if(n.getDate()<b.getDate())m--;return Math.max(0,m)+' mois';}return y+' ans';}
+function esc(s){return(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function initials(name){return(name||'?').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase();}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+function avatarHTML(m,cls=''){if(m&&m.photo)return`<div class="avatar ${cls}"><img src="${m.photo}" alt=""></div>`;return`<div class="avatar ${cls}">${m&&m.name?esc(initials(m.name)):'👤'}</div>`;}
+function memberName(id){const m=state.members.find(x=>x.id===id);return m?m.name:'';}
+function resizeImage(file,max,quality){return new Promise(res=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let{width:w,height:h}=img;if(w>h){if(w>max){h=h*max/w;w=max;}}else{if(h>max){w=w*max/h;h=max;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality));};img.src=r.result;};r.readAsDataURL(file);});}
+function pickFile(accept,cb){const i=document.createElement('input');i.type='file';i.accept=accept;i.onchange=e=>{if(e.target.files[0])cb(e.target.files[0]);};i.click();}
+function openImage(src){const lb=document.createElement('div');lb.className='lightbox';lb.innerHTML=`<img src="${src}">`;lb.onclick=()=>lb.remove();document.body.appendChild(lb);}
+
+const CATS={rdv:{label:'Rendez-vous',emoji:'🩺',color:'#2f6fed'},vacances:{label:'Vacances',emoji:'🏖️',color:'#1f9d57'},scolaire:{label:'Scolaire',emoji:'🎒',color:'#d98313'},prive:{label:'Privé',emoji:'🎉',color:'#8a5cf6'},autre:{label:'Autre',emoji:'📌',color:'#6a7488'}};
+
+function isTreatmentActive(h){return !h.endDate||parseD(h.endDate)>=new Date(new Date().toDateString());}
+function activeMeds(){const out=[];state.health.forEach(h=>{if(isTreatmentActive(h))(h.meds||[]).forEach(md=>out.push({med:md,health:h}));});return out;}
+
+/* ---------------- Rappels ---------------- */
+function computeReminders(){
+  const out=[];const today=todayStr();
+  state.events.filter(e=>e.category==='rdv'&&e.date).forEach(e=>{const dd=daysBetween(e.date,today);if(dd>=0&&dd<=7)out.push({icon:'🩺',urgent:dd<=1,text:`${e.title}${memberName(e.memberId)?' ('+memberName(e.memberId)+')':''} — ${dd===0?"aujourd'hui":dd===1?'demain':'le '+fmtDate(e.date)}`});});
+  (state.vaccines||[]).filter(v=>v.nextDate).forEach(v=>{const dd=daysBetween(v.nextDate,today);if(dd<=30)out.push({icon:'💉',urgent:dd<=0,text:`Rappel vaccin ${v.name} (${memberName(v.memberId)}) — ${dd<0?'en retard ('+fmtDate(v.nextDate)+')':dd===0?"aujourd'hui":'le '+fmtDate(v.nextDate)}`});});
+  out.sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0));
+  return out;
+}
+function maybeNotify(){
+  const s=state.settings||{};if(!s.notif||!('Notification'in window)||Notification.permission!=='granted')return;
+  const urgent=computeReminders().filter(r=>r.urgent);
+  if(urgent.length){try{new Notification('Famio — à ne pas oublier',{body:urgent.slice(0,3).map(r=>r.text).join('\n')});}catch(e){}}
+}
+
+/* ---------------- Chiffrement (AES-GCM + PBKDF2) ---------------- */
+function b64(buf){let s='';const b=new Uint8Array(buf);const c=0x8000;for(let i=0;i<b.length;i+=c)s+=String.fromCharCode.apply(null,b.subarray(i,i+c));return btoa(s);}
+function unb64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}
+async function deriveKey(pw,salt){const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),{name:'PBKDF2'},false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+async function encryptPkg(obj,pw){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));const key=await deriveKey(pw,salt);const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));return{app:'famille',enc:true,v:1,salt:b64(salt),iv:b64(iv),data:b64(ct)};}
+async function decryptPkg(pkg,pw){const key=await deriveKey(pw,unb64(pkg.salt));const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(pkg.iv)},key,unb64(pkg.data));return JSON.parse(new TextDecoder().decode(pt));}
+
+/* ---------------- Fichier sur disque ---------------- */
+async function saveToFile(){
+  if(masterPw==null){toast('Crée d\'abord un mot de passe');return;}
+  const text=JSON.stringify(await encryptPkg(state,masterPw));
+  if(hasSaveFSA){
+    try{
+      if(!fileHandle)fileHandle=await window.showSaveFilePicker({suggestedName:'famio.famdb',types:[{description:'Données Famio (chiffré)',accept:{'application/octet-stream':['.famdb']}}]});
+      const w=await fileHandle.createWritable();await w.write(text);await w.close();toast('✅ Fichier enregistré');return;
+    }catch(e){if(e.name==='AbortError')return;console.warn(e);}
+  }
+  const blob=new Blob([text],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='famio.famdb';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('Fichier téléchargé — range-le dans iCloud/OneDrive');
+}
+async function openFromFile(){
+  let text=null;
+  if(hasOpenFSA){
+    try{const [h]=await window.showOpenFilePicker({types:[{description:'Données Famio',accept:{'application/octet-stream':['.famdb','.json']}}]});fileHandle=h;text=await (await h.getFile()).text();}
+    catch(e){if(e.name==='AbortError')return;}
+  }
+  if(text==null){text=await new Promise(res=>pickFile('.famdb,.json,application/octet-stream,application/json',f=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsText(f);}));if(!text)return;}
+  let pkg;try{pkg=JSON.parse(text);}catch(e){toast('⚠️ Fichier illisible');return;}
+  if(!pkg||!pkg.enc){toast('⚠️ Fichier non reconnu');return;}
+  showGate({title:'Ouvrir le fichier',sub:'Entre le mot de passe de ce fichier',create:false,allowCancel:true,onSubmit:async(pw)=>{
+    try{const data=await decryptPkg(pkg,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;await saveState();view={name:'home'};setNav();render();maybeNotify();toast('Fichier chargé');return null;}
+    catch(e){return 'Mot de passe incorrect';}
+  }});
+}
+
+/* ---------------- Navigation ---------------- */
+let view={name:'home'};
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.dataset.view==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:b.dataset.view};setNav();render();});
+function setNav(){const map={home:'home',member:'home',health:'health',calendar:'calendar'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
+
+function render(){const app=document.getElementById('app');
+  if(view.name==='home')app.innerHTML=renderHome();
+  else if(view.name==='member')app.innerHTML=renderMember(view.id);
+  else if(view.name==='health')app.innerHTML=renderHealth();
+  else if(view.name==='calendar')app.innerHTML=renderCalendar();
+  bind();
+}
+
+/* ---------------- Accueil ---------------- */
+function renderHome(){
+  const rem=computeReminders();
+  let banner='';
+  if(rem.length)banner=`<div class="reminders"><h4>🔔 À ne pas oublier</h4>${rem.slice(0,5).map(r=>`<div class="rem ${r.urgent?'urgent':''}"><span>${r.icon}</span><span>${esc(r.text)}</span></div>`).join('')}</div>`;
+  let cards=state.members.map(m=>{const active=state.health.filter(h=>h.memberId===m.id&&isTreatmentActive(h)).length;const chip=active>0?`<span class="chip care">⚠ ${active} en cours</span>`:`<span class="chip ok">✓ En forme</span>`;return `<div class="member-card" data-member="${m.id}">${avatarHTML(m)}<div class="name">${esc(m.name)}</div><div class="age">${ageText(m.dob)}</div>${chip}</div>`;}).join('');
+  cards+=`<button class="add-tile" id="addMember"><span class="plus">+</span>Ajouter un membre</button>`;
+  const head=state.members.length?'':`<div class="empty"><div class="big">👋</div>Bienvenue ! Ajoute le premier membre de la famille pour commencer.</div>`;
+  return `${banner}<h2 class="section">Membres de la famille</h2>${head}<div class="grid">${cards}</div>`;
+}
+
+/* ---------------- Santé globale ---------------- */
+function renderHealth(){
+  if(!state.members.length)return `<div class="empty"><div class="big">🏥</div>Ajoute d'abord des membres dans l'onglet Famille.</div>`;
+  const activeTreat=state.health.filter(isTreatmentActive);const meds=activeMeds();
+  const now=new Date(new Date().toDateString());const rdvUp=state.events.filter(e=>e.category==='rdv'&&parseD(e.date)>=now);
+  const stats=`<div class="stats"><div class="stat accent"><div class="num">${state.members.length}</div><div class="lbl">Membres</div></div><div class="stat amber"><div class="num">${activeTreat.length}</div><div class="lbl">Soucis en cours</div></div><div class="stat violet"><div class="num">${meds.length}</div><div class="lbl">Médicaments actifs</div></div><div class="stat green"><div class="num">${rdvUp.length}</div><div class="lbl">RDV à venir</div></div></div>`;
+  const rem=computeReminders();
+  const remHtml=rem.length?`<h2 class="section">À ne pas oublier</h2><div class="card">${rem.map(r=>`<div class="rem" style="display:flex;gap:8px;padding:5px 0;${r.urgent?'font-weight:700':''}"><span>${r.icon}</span><span>${esc(r.text)}</span></div>`).join('')}</div>`:'';
+  let treat=`<h2 class="section">Traitements en cours</h2>`;
+  if(!activeTreat.length)treat+=`<div class="empty"><div class="big">✓</div>Personne n'est malade en ce moment 🎉</div>`;
+  else treat+=activeTreat.map(h=>{const mm=(h.meds||[]).map(md=>`<div class="med"><div class="mname">💊 ${esc(md.name)} <span style="color:var(--muted);font-weight:500">— ${esc(memberName(h.memberId))}</span></div><div class="mdetail">${md.dose?`<span>${esc(md.dose)} ${esc(md.unit||'')}</span>`:''}${md.perDay?`<span>• ${esc(md.perDay)}×/jour</span>`:''}${md.durationDays?`<span>• ${esc(md.durationDays)} j</span>`:''}</div></div>`).join('')||`<div class="mdetail" style="margin-top:6px">Aucun médicament noté</div>`;return `<div class="card left-amber"><div class="row-top"><h4>${esc(h.title)} <span style="color:var(--muted);font-size:14px">· ${esc(memberName(h.memberId))}</span></h4><span class="date">depuis ${fmtDate(h.startDate)}</span></div>${mm}</div>`;}).join('');
+  let rdv=`<h2 class="section">Prochains rendez-vous</h2>`;const up=rdvUp.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(0,6);
+  rdv+=up.length?up.map(e=>{const d=parseD(e.date);return `<div class="agenda-item"><div class="datebox"><span class="d">${d.getDate()}</span><span class="m">${MONTHS[d.getMonth()]}</span></div><div style="flex:1"><div class="ai-title">${esc(e.title)}</div><div class="ai-sub">${esc([memberName(e.memberId),e.doctor].filter(Boolean).join(' · '))}</div></div></div>`;}).join(''):`<div class="empty">Aucun rendez-vous prévu</div>`;
+  const counts=new Array(12).fill(0);const labels=[];const base=new Date();base.setDate(1);
+  for(let i=11;i>=0;i--){const d=new Date(base.getFullYear(),base.getMonth()-i,1);labels.push(MONTHS[d.getMonth()]);}
+  state.health.forEach(h=>{const d=parseD(h.startDate);if(!d)return;const diff=(base.getFullYear()-d.getFullYear())*12+(base.getMonth()-d.getMonth());if(diff>=0&&diff<12)counts[11-diff]++;});
+  const maxC=Math.max(1,...counts);
+  const bars=`<div class="card"><div class="bars">${counts.map((c,i)=>`<div class="bar-wrap"><div class="bar" style="height:${Math.round(c/maxC*100)}%">${c?`<span>${c}</span>`:''}</div><div class="bar-lbl">${labels[i]}</div></div>`).join('')}</div></div>`;
+  const refRows=state.members.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.bloodType)||'—'}</td><td>${m.allergies?`<span style="color:var(--amber);font-weight:600">${esc(m.allergies)}</span>`:'—'}</td></tr>`).join('');
+  const ref=`<table class="reftable"><tr><th>Membre</th><th>Groupe sanguin</th><th>Allergies</th></tr>${refRows}</table>`;
+  return `${stats}${remHtml}${treat}${rdv}<h2 class="section">Maladies sur 12 mois</h2>${bars}<h2 class="section">Infos vitales (allergies & groupes sanguins)</h2>${ref}<div class="list-add" style="margin-top:16px"><button class="btn danger" id="emergencyBtn">🚨 Fiche d'urgence imprimable</button></div>`;
+}
+
+/* ---------------- Membre ---------------- */
+function renderMember(id){
+  const m=state.members.find(x=>x.id===id);if(!m){view={name:'home'};return renderHome();}
+  const tab=view.tab||'sante';
+  const hero=`<div class="profile-hero">${avatarHTML(m)}<div style="flex:1;min-width:180px"><div class="h-name">${esc(m.name)}</div><div class="h-sub">${ageText(m.dob)} · né(e) le ${fmtDate(m.dob)}</div><div class="badges">${m.bloodType?`<div class="badge"><b>Groupe sanguin</b>${esc(m.bloodType)}</div>`:''}${m.allergies?`<div class="badge warn"><b>Allergies</b>${esc(m.allergies)}</div>`:''}</div></div></div>`;
+  const T=[['sante','🏥 Santé'],['vaccins','💉 Vaccins'],['croissance','📈 Croissance'],['rdv','🩺 RDV'],['infos','ℹ️ Infos']];
+  const tabs=`<div class="tabs">${T.map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'active':''}">${l}</button>`).join('')}</div>`;
+  let body= tab==='sante'?renderSante(m):tab==='vaccins'?renderVaccines(m):tab==='croissance'?renderGrowth(m):tab==='rdv'?renderRDV(m):renderInfos(m);
+  return `<button class="back" id="back">← Retour</button>${hero}${tabs}<div style="margin-top:16px">${body}</div>`;
+}
+
+function renderSante(m){
+  const list=state.health.filter(h=>h.memberId===m.id).sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''));
+  const current=list.filter(isTreatmentActive), past=list.filter(h=>!isTreatmentActive(h));
+  const card=h=>{const meds=(h.meds||[]).map((md,i)=>`<div class="med"><div class="mname">💊 ${esc(md.name)} <button class="btn ghost sm" style="float:right;padding:2px 8px" data-delmed="${h.id}:${i}">✕</button></div><div class="mdetail">${md.dose?`<span>${esc(md.dose)} ${esc(md.unit||'')}</span>`:''}${md.perDay?`<span>• ${esc(md.perDay)}×/jour</span>`:''}${md.durationDays?`<span>• ${esc(md.durationDays)} jours</span>`:''}</div>${md.notes?`<div class="mdetail">${esc(md.notes)}</div>`:''}</div>`).join('')||`<div class="mdetail" style="margin-top:8px">Aucun médicament</div>`;
+    const rx=(h.rx||[]).map(src=>`<img src="${src}" data-rximg="${src}" title="Voir l'ordonnance">`).join('');
+    const period=h.endDate?`${fmtDate(h.startDate)} → ${fmtDate(h.endDate)}`:`Depuis le ${fmtDate(h.startDate)}`;
+    return `<div class="card left-amber"><div class="row-top"><h4>${esc(h.title)}</h4><span class="date">${period}</span></div>${h.description?`<p class="desc">${esc(h.description)}</p>`:''}<div style="margin-top:10px">${meds}</div>${rx?`<div class="rx-thumbs">${rx}</div>`:''}<div class="mini-actions"><button class="btn soft sm" data-addmed="${h.id}">+ Médicament</button><button class="btn soft sm" data-addrx="${h.id}">📎 Joindre ordonnance</button><button class="btn ghost sm" data-edithealth="${h.id}">Modifier</button><button class="btn danger sm" data-delhealth="${h.id}">Supprimer</button></div></div>`;};
+  let html=`<div class="list-add"><button class="btn primary" id="addHealth">+ Ajouter une maladie / un souci</button></div>`;
+  html+=`<h2 class="section">En cours</h2>`+(current.length?current.map(card).join(''):`<div class="empty"><div class="big">✓</div>En bonne santé</div>`);
+  if(past.length)html+=`<h2 class="section">Historique</h2>`+past.map(card).join('');
+  return html;
+}
+
+function renderVaccines(m){
+  const list=(state.vaccines||[]).filter(v=>v.memberId===m.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const today=todayStr();
+  const card=v=>{let badge='';if(v.nextDate){const dd=daysBetween(v.nextDate,today);if(dd<0)badge=`<span class="chip care">Rappel en retard</span>`;else if(dd<=30)badge=`<span class="chip care">Rappel bientôt</span>`;else badge=`<span class="chip ok">Rappel le ${fmtDate(v.nextDate)}</span>`;}
+    return `<div class="card left-green"><div class="row-top"><h4>💉 ${esc(v.name)}</h4><span class="date">${fmtDate(v.date)}</span></div>${v.notes?`<p class="desc">${esc(v.notes)}</p>`:''}<div style="margin-top:8px">${badge}</div><div class="mini-actions"><button class="btn ghost sm" data-editvac="${v.id}">Modifier</button><button class="btn danger sm" data-delvac="${v.id}">Supprimer</button></div></div>`;};
+  let html=`<div class="list-add"><button class="btn primary" id="addVac">+ Ajouter un vaccin</button></div>`;
+  html+=list.length?list.map(card).join(''):`<div class="empty"><div class="big">💉</div>Aucun vaccin enregistré</div>`;
+  return html;
+}
+
+function lineChart(vals,color,unit){
+  if(vals.length<2)return `<div class="empty" style="padding:16px">Ajoute au moins 2 mesures pour voir la courbe</div>`;
+  const w=320,h=140,pad=28;const ys=vals.map(v=>v.y);const min=Math.min(...ys),max=Math.max(...ys);const range=(max-min)||1;const stepX=(w-pad*2)/(vals.length-1);
+  const pts=vals.map((v,i)=>[pad+i*stepX, h-pad-((v.y-min)/range)*(h-pad*2)]);
+  const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const dots=pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${color}"/>`).join('');
+  const last=vals[vals.length-1];
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto"><path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/>${dots}<text x="4" y="16" font-size="11" fill="#8a94a8">${max}${unit}</text><text x="4" y="${h-8}" font-size="11" fill="#8a94a8">${min}${unit}</text><text x="${w-4}" y="16" font-size="12" font-weight="700" fill="${color}" text-anchor="end">${last.y}${unit}</text></svg>`;
+}
+function renderGrowth(m){
+  const list=(state.measurements||[]).filter(x=>x.memberId===m.id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let html=`<div class="list-add"><button class="btn primary" id="addMeas">+ Ajouter une mesure</button></div>`;
+  if(!list.length)return html+`<div class="empty"><div class="big">📈</div>Aucune mesure. Ajoute taille et/ou poids pour suivre la croissance.</div>`;
+  const last=list[list.length-1];
+  html+=`<div class="stats" style="margin-top:14px">${last.height?`<div class="stat accent"><div class="num">${last.height}<span style="font-size:15px"> cm</span></div><div class="lbl">Taille (${fmtDate(last.date)})</div></div>`:''}${last.weight?`<div class="stat violet"><div class="num">${last.weight}<span style="font-size:15px"> kg</span></div><div class="lbl">Poids (${fmtDate(last.date)})</div></div>`:''}</div>`;
+  const hv=list.filter(x=>x.height).map(x=>({y:+x.height}));
+  const wv=list.filter(x=>x.weight).map(x=>({y:+x.weight}));
+  html+=`<h2 class="section">Taille</h2><div class="card">${lineChart(hv,'#2f6fed',' cm')}</div>`;
+  html+=`<h2 class="section">Poids</h2><div class="card">${lineChart(wv,'#8a5cf6',' kg')}</div>`;
+  html+=`<h2 class="section">Historique</h2>`+list.slice().reverse().map(x=>`<div class="agenda-item" style="box-shadow:none"><div style="flex:1"><div class="ai-title">${fmtDate(x.date)}</div><div class="ai-sub">${x.height?x.height+' cm':''}${x.height&&x.weight?' · ':''}${x.weight?x.weight+' kg':''}</div></div><button class="btn danger sm" data-delmeas="${x.id}">✕</button></div>`).join('');
+  return html;
+}
+
+function renderRDV(m){
+  const list=state.events.filter(e=>e.category==='rdv'&&e.memberId===m.id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const now=new Date(new Date().toDateString());const up=list.filter(e=>parseD(e.date)>=now),past=list.filter(e=>parseD(e.date)<now);
+  const item=e=>{const d=parseD(e.date);return `<div class="agenda-item"><div class="datebox"><span class="d">${d?d.getDate():'?'}</span><span class="m">${d?MONTHS[d.getMonth()]:''}</span></div><div style="flex:1"><div class="ai-title">${esc(e.title)}</div><div class="ai-sub">${esc([e.doctor,e.notes].filter(Boolean).join(' · '))||fmtDate(e.date)}</div></div><button class="btn ghost sm" data-editevent="${e.id}">Modifier</button></div>`;};
+  let html=`<div class="list-add"><button class="btn primary" id="addRdv">+ Ajouter un rendez-vous</button></div>`;
+  html+=`<h2 class="section">À venir</h2>`+(up.length?up.map(item).join(''):`<div class="empty">Aucun rendez-vous prévu</div>`);
+  if(past.length)html+=`<h2 class="section">Passés</h2>`+past.map(item).join('');
+  return html;
+}
+function renderInfos(m){return `<div class="card"><div class="field"><label>Nom complet</label><div>${esc(m.name)}</div></div><div class="field"><label>Date de naissance</label><div>${fmtDate(m.dob)} (${ageText(m.dob)})</div></div><div class="field"><label>Groupe sanguin</label><div>${esc(m.bloodType)||'—'}</div></div><div class="field"><label>Allergies</label><div>${esc(m.allergies)||'Aucune connue'}</div></div><div class="field"><label>Médecin traitant</label><div>${esc(m.doctor)||'—'}</div></div><div class="field"><label>Notes</label><div>${esc(m.notes)||'—'}</div></div><div class="mini-actions"><button class="btn primary" data-editmember="${m.id}">✏️ Modifier</button><button class="btn danger" data-delmember="${m.id}">Supprimer ce membre</button></div></div>`;}
+
+/* ---------------- Calendrier ---------------- */
+function birthdaysForDay(dateStr){const d=parseD(dateStr);return state.members.filter(m=>{const b=parseD(m.dob);return b&&b.getDate()===d.getDate()&&b.getMonth()===d.getMonth();});}
+function eventsForDay(dateStr){const out=state.events.filter(e=>{if(!e.date)return false;const s=e.date,en=e.endDate||e.date;return dateStr>=s&&dateStr<=en;}).map(e=>({...e,_cat:e.category}));birthdaysForDay(dateStr).forEach(m=>out.push({title:'🎂 '+m.name.split(' ')[0],_cat:'anniv',_birthday:true}));return out;}
+function renderCalendar(){
+  if(view.mode==='liste')return renderAgendaList();
+  const y=view.y,m=view.m;const first=new Date(y,m,1);let startDow=(first.getDay()+6)%7;const daysInMonth=new Date(y,m+1,0).getDate();const todayS=todayStr();
+  let cells='';for(let i=0;i<startDow;i++){const d=new Date(y,m,1-startDow+i);cells+=dayCell(d,true,todayS);}
+  for(let day=1;day<=daysInMonth;day++)cells+=dayCell(new Date(y,m,day),false,todayS);
+  const total=startDow+daysInMonth;const trail=(7-total%7)%7;for(let i=1;i<=trail;i++)cells+=dayCell(new Date(y,m+1,i),true,todayS);
+  const head=`<div class="cal-head"><button class="cal-nav" id="prevM">‹</button><div class="title">${MONTHS_FULL[m]} ${y}</div><button class="cal-nav" id="nextM">›</button></div>`;
+  const toggle=`<div class="list-add" style="justify-content:space-between;margin-bottom:12px"><button class="btn primary" id="addEvent">+ Ajouter un événement</button><div><button class="btn ghost sm" id="toList">☰ Liste</button> <button class="btn ghost sm" id="todayBtn">Aujourd'hui</button></div></div>`;
+  const dows=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  return `${toggle}${head}<div class="cal-grid">${dows}${cells}</div>`;
+}
+function dayCell(d,other,todayS){const ds=ymd(d);const evs=eventsForDay(ds);const isToday=ds===todayS;const shown=evs.slice(0,3).map(e=>{const c=e._cat==='anniv'?{color:'#e26aa7'}:(CATS[e._cat]||CATS.autre);return `<div class="cal-ev" style="background:${c.color}">${esc(e.title)}</div>`;}).join('');const more=evs.length>3?`<div class="cal-more">+${evs.length-3}</div>`:'';return `<div class="cal-cell ${other?'other':''} ${isToday?'today':''}" data-day="${ds}"><div class="dnum">${d.getDate()}</div>${shown}${more}</div>`;}
+function renderAgendaList(){
+  const items=state.events.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));const now=new Date(new Date().toDateString());
+  const up=items.filter(e=>parseD(e.endDate||e.date)>=now),past=items.filter(e=>parseD(e.endDate||e.date)<now).reverse();
+  const item=e=>{const d=parseD(e.date);const c=CATS[e.category]||CATS.autre;const sub=[c.label,memberName(e.memberId),e.doctor,e.endDate?('→ '+fmtDate(e.endDate)):'',e.notes].filter(Boolean).join(' · ');return `<div class="agenda-item"><div class="datebox" style="background:${c.color}22;color:${c.color}"><span class="d">${d?d.getDate():'?'}</span><span class="m">${d?MONTHS[d.getMonth()]:''}</span></div><div style="flex:1"><div class="ai-title"><span class="cat-dot" style="background:${c.color}"></span>${esc(e.title)}</div><div class="ai-sub">${esc(sub)}</div></div><button class="btn ghost sm" data-editevent="${e.id}">Modifier</button></div>`;};
+  const toggle=`<div class="list-add" style="justify-content:space-between;margin-bottom:12px"><button class="btn primary" id="addEvent">+ Ajouter un événement</button><button class="btn ghost sm" id="toMonth">▦ Mois</button></div>`;
+  let html=toggle+`<h2 class="section">À venir</h2>`+(up.length?up.map(item).join(''):`<div class="empty"><div class="big">📅</div>Rien de prévu</div>`);
+  if(past.length)html+=`<h2 class="section">Passé</h2>`+past.map(item).join('');return html;
+}
+
+/* ---------------- Liaisons ---------------- */
+function bind(){
+  const q=s=>document.querySelector(s),qa=s=>document.querySelectorAll(s);
+  qa('[data-member]').forEach(el=>el.onclick=()=>{view={name:'member',id:el.dataset.member,tab:'sante'};setNav();render();});
+  const add=q('#addMember');if(add)add.onclick=()=>memberModal();
+  const back=q('#back');if(back)back.onclick=()=>{view={name:'home'};setNav();render();};
+  qa('.tabs button').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render();});
+  const ah=q('#addHealth');if(ah)ah.onclick=()=>healthModal(view.id);
+  qa('[data-addmed]').forEach(b=>b.onclick=()=>medModal(b.dataset.addmed));
+  qa('[data-delmed]').forEach(b=>b.onclick=()=>{const[hid,idx]=b.dataset.delmed.split(':');const h=state.health.find(x=>x.id===hid);if(h){h.meds.splice(+idx,1);saveState();render();}});
+  qa('[data-addrx]').forEach(b=>b.onclick=()=>{const h=state.health.find(x=>x.id===b.dataset.addrx);pickFile('image/*',async f=>{const img=await resizeImage(f,1100,0.8);h.rx=h.rx||[];h.rx.push(img);await saveState();render();toast('Ordonnance jointe');});});
+  qa('[data-rximg]').forEach(el=>el.onclick=()=>openImage(el.dataset.rximg));
+  qa('[data-edithealth]').forEach(b=>b.onclick=()=>healthModal(view.id,b.dataset.edithealth));
+  qa('[data-delhealth]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cet élément de santé ?')){state.health=state.health.filter(h=>h.id!==b.dataset.delhealth);saveState();render();toast('Supprimé');}});
+  // vaccins
+  const av=q('#addVac');if(av)av.onclick=()=>vaccineModal(view.id);
+  qa('[data-editvac]').forEach(b=>b.onclick=()=>vaccineModal(view.id,b.dataset.editvac));
+  qa('[data-delvac]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer ce vaccin ?')){state.vaccines=state.vaccines.filter(v=>v.id!==b.dataset.delvac);saveState();render();}});
+  // croissance
+  const am=q('#addMeas');if(am)am.onclick=()=>measurementModal(view.id);
+  qa('[data-delmeas]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette mesure ?')){state.measurements=state.measurements.filter(x=>x.id!==b.dataset.delmeas);saveState();render();}});
+  // rdv/events
+  const ar=q('#addRdv');if(ar)ar.onclick=()=>eventModal(null,{category:'rdv',memberId:view.id});
+  const ae=q('#addEvent');if(ae)ae.onclick=()=>eventModal();
+  qa('[data-editevent]').forEach(b=>b.onclick=()=>eventModal(b.dataset.editevent));
+  qa('[data-editmember]').forEach(b=>b.onclick=()=>memberModal(b.dataset.editmember));
+  qa('[data-delmember]').forEach(b=>b.onclick=()=>{const id=b.dataset.delmember;if(confirm('Supprimer ce membre et toutes ses données ?')){state.members=state.members.filter(m=>m.id!==id);state.health=state.health.filter(h=>h.memberId!==id);state.events=state.events.filter(e=>e.memberId!==id);state.vaccines=state.vaccines.filter(v=>v.memberId!==id);state.measurements=state.measurements.filter(x=>x.memberId!==id);saveState();view={name:'home'};setNav();render();toast('Membre supprimé');}});
+  const pm=q('#prevM');if(pm)pm.onclick=()=>{let m=view.m-1,y=view.y;if(m<0){m=11;y--;}view.m=m;view.y=y;render();};
+  const nm=q('#nextM');if(nm)nm.onclick=()=>{let m=view.m+1,y=view.y;if(m>11){m=0;y++;}view.m=m;view.y=y;render();};
+  const tb=q('#todayBtn');if(tb)tb.onclick=()=>{const n=new Date();view.y=n.getFullYear();view.m=n.getMonth();render();};
+  const tl=q('#toList');if(tl)tl.onclick=()=>{view.mode='liste';render();};
+  const tmo=q('#toMonth');if(tmo)tmo.onclick=()=>{view.mode='mois';render();};
+  qa('[data-day]').forEach(el=>el.onclick=()=>dayModal(el.dataset.day));
+  const eb=q('#emergencyBtn');if(eb)eb.onclick=()=>emergencyModal();
+}
+
+/* ---------------- Modals ---------------- */
+function openModal(title,bodyHTML,onSave,saveLabel){
+  const ov=document.createElement('div');ov.className='overlay';
+  ov.innerHTML=`<div class="modal"><header><h3>${title}</h3><button class="close">✕</button></header><div class="body">${bodyHTML}</div>${onSave?`<footer><button class="btn ghost" data-cancel>Annuler</button><button class="btn primary" data-save>${saveLabel||'Enregistrer'}</button></footer>`:''}</div>`;
+  document.body.appendChild(ov);const close=()=>ov.remove();
+  ov.querySelector('.close').onclick=close;const c=ov.querySelector('[data-cancel]');if(c)c.onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  const s=ov.querySelector('[data-save]');if(s)s.onclick=async()=>{const ok=await onSave(ov);if(ok!==false)close();};return ov;
+}
+const val=(ov,id)=>{const el=ov.querySelector('#'+id);return el?el.value.trim():'';};
+
+function memberModal(id){
+  const m=id?state.members.find(x=>x.id===id):{};let photo=m.photo||'';const bt=['','O+','O-','A+','A-','B+','B-','AB+','AB-'];
+  const body=`<div class="field"><label>Photo</label><div class="photo-pick"><div id="photoPrev">${avatarHTML({name:m.name,photo})}</div><div><button class="btn soft sm" id="pickPhoto">Choisir une photo</button> <button class="btn ghost sm" id="rmPhoto">Retirer</button><div class="hint">Reste sur ton appareil, jamais envoyée en ligne.</div></div></div></div>
+    <div class="field"><label>Nom complet *</label><input id="mName" value="${esc(m.name)}" placeholder="Ex : Léa Martin"></div>
+    <div class="row2"><div class="field"><label>Date de naissance *</label><input type="date" id="mDob" value="${esc(m.dob)}"></div><div class="field"><label>Groupe sanguin</label><select id="mBlood">${bt.map(x=>`<option ${x===(m.bloodType||'')?'selected':''}>${x||'—'}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Allergies</label><input id="mAllergies" value="${esc(m.allergies)}" placeholder="Ex : Pénicilline, arachides"></div>
+    <div class="field"><label>Médecin traitant</label><input id="mDoctor" value="${esc(m.doctor)}" placeholder="Ex : Dr Dupont"></div>
+    <div class="field"><label>Notes</label><textarea id="mNotes" placeholder="Infos utiles...">${esc(m.notes)}</textarea></div>`;
+  const ov=openModal(id?'Modifier le membre':'Nouveau membre',body,async(ov)=>{const name=val(ov,'mName'),dob=ov.querySelector('#mDob').value;if(!name||!dob){toast('Nom et date de naissance obligatoires');return false;}const data={name,dob,bloodType:(ov.querySelector('#mBlood').value||'').replace('—',''),allergies:val(ov,'mAllergies'),doctor:val(ov,'mDoctor'),notes:val(ov,'mNotes'),photo};if(id)Object.assign(m,data);else state.members.push({id:uid(),...data});await saveState();render();toast(id?'Membre mis à jour':'Membre ajouté');});
+  ov.querySelector('#pickPhoto').onclick=()=>pickFile('image/*',async f=>{photo=await resizeImage(f,256,0.85);ov.querySelector('#photoPrev').innerHTML=avatarHTML({name:val(ov,'mName'),photo});});
+  ov.querySelector('#rmPhoto').onclick=()=>{photo='';ov.querySelector('#photoPrev').innerHTML=avatarHTML({name:val(ov,'mName'),photo});};
+}
+
+function healthModal(memberId,id){
+  const h=id?state.health.find(x=>x.id===id):{};
+  const body=`<div class="field"><label>Maladie / problème de santé *</label><input id="hTitle" value="${esc(h.title)}" placeholder="Ex : Grippe, angine..."></div><div class="field"><label>Description</label><textarea id="hDesc" placeholder="Symptômes, remarques...">${esc(h.description)}</textarea></div><div class="row2"><div class="field"><label>Date de début *</label><input type="date" id="hStart" value="${esc(h.startDate)||todayStr()}"></div><div class="field"><label>Date de fin</label><input type="date" id="hEnd" value="${esc(h.endDate)}"><div class="hint">Vide = toujours en cours</div></div></div>`;
+  openModal(id?'Modifier':'Nouvelle maladie',body,async(ov)=>{const title=val(ov,'hTitle');if(!title){toast('Indique le nom de la maladie');return false;}const data={title,description:val(ov,'hDesc'),startDate:ov.querySelector('#hStart').value||todayStr(),endDate:ov.querySelector('#hEnd').value};if(id)Object.assign(h,data);else state.health.push({id:uid(),memberId,meds:[],rx:[],...data});await saveState();render();toast('Enregistré');});
+}
+function medModal(healthId){
+  const h=state.health.find(x=>x.id===healthId);if(!h)return;
+  const body=`<div class="field"><label>Nom du médicament *</label><input id="dName" placeholder="Ex : Doliprane"></div><div class="row2"><div class="field"><label>Dose</label><input id="dDose" placeholder="Ex : 500"></div><div class="field"><label>Unité</label><input id="dUnit" placeholder="mg, ml, comprimé..."></div></div><div class="row2"><div class="field"><label>Prises par jour</label><input id="dPer" type="number" min="0" placeholder="Ex : 3"></div><div class="field"><label>Durée (jours)</label><input id="dDur" type="number" min="0" placeholder="Ex : 7"></div></div><div class="field"><label>Notes</label><input id="dNotes" placeholder="Ex : pendant les repas"></div>`;
+  openModal('Ajouter un médicament',body,async(ov)=>{const name=val(ov,'dName');if(!name){toast('Indique le nom du médicament');return false;}h.meds=h.meds||[];h.meds.push({name,dose:val(ov,'dDose'),unit:val(ov,'dUnit'),perDay:val(ov,'dPer'),durationDays:val(ov,'dDur'),notes:val(ov,'dNotes')});await saveState();render();toast('Médicament ajouté');});
+}
+function vaccineModal(memberId,id){
+  const v=id?state.vaccines.find(x=>x.id===id):{};
+  const body=`<div class="field"><label>Nom du vaccin *</label><input id="vName" value="${esc(v.name)}" placeholder="Ex : DTP, ROR, Grippe..."></div><div class="row2"><div class="field"><label>Date d'injection *</label><input type="date" id="vDate" value="${esc(v.date)||todayStr()}"></div><div class="field"><label>Prochain rappel</label><input type="date" id="vNext" value="${esc(v.nextDate)}"><div class="hint">Optionnel</div></div></div><div class="field"><label>Notes</label><input id="vNotes" value="${esc(v.notes)}" placeholder="Lot, médecin..."></div>`;
+  openModal(id?'Modifier le vaccin':'Nouveau vaccin',body,async(ov)=>{const name=val(ov,'vName');if(!name){toast('Indique le nom du vaccin');return false;}const data={name,date:ov.querySelector('#vDate').value||todayStr(),nextDate:ov.querySelector('#vNext').value,notes:val(ov,'vNotes')};if(id)Object.assign(v,data);else state.vaccines.push({id:uid(),memberId,...data});await saveState();render();toast('Vaccin enregistré');});
+}
+function measurementModal(memberId){
+  const body=`<div class="field"><label>Date *</label><input type="date" id="xDate" value="${todayStr()}"></div><div class="row2"><div class="field"><label>Taille (cm)</label><input id="xH" type="number" step="0.1" min="0" placeholder="Ex : 120"></div><div class="field"><label>Poids (kg)</label><input id="xW" type="number" step="0.1" min="0" placeholder="Ex : 23"></div></div>`;
+  openModal('Nouvelle mesure',body,async(ov)=>{const h=val(ov,'xH'),w=val(ov,'xW');if(!h&&!w){toast('Indique au moins une taille ou un poids');return false;}state.measurements.push({id:uid(),memberId,date:ov.querySelector('#xDate').value||todayStr(),height:h||'',weight:w||''});await saveState();render();toast('Mesure ajoutée');});
+}
+function eventModal(id,preset={}){
+  const e=id?state.events.find(x=>x.id===id):preset;const isRdv=(e.category||'rdv')==='rdv';
+  const memberOpts=`<option value="">— Toute la famille —</option>`+state.members.map(m=>`<option value="${m.id}" ${m.id===e.memberId?'selected':''}>${esc(m.name)}</option>`).join('');
+  const catOpts=Object.entries(CATS).map(([k,c])=>`<option value="${k}" ${k===(e.category||'rdv')?'selected':''}>${c.emoji} ${c.label}</option>`).join('');
+  const body=`<div class="field"><label>Catégorie</label><select id="eCat">${catOpts}</select></div><div class="field"><label>Titre *</label><input id="eTitle" value="${esc(e.title)}" placeholder="Ex : Pédiatre, Vacances à la mer..."></div><div class="field"><label>Concerne</label><select id="eMember">${memberOpts}</select></div><div class="row2"><div class="field"><label>Date *</label><input type="date" id="eDate" value="${esc(e.date)||todayStr()}"></div><div class="field"><label>Date de fin</label><input type="date" id="eEnd" value="${esc(e.endDate)}"></div></div><div class="field" id="docField" style="${isRdv?'':'display:none'}"><label>Médecin / lieu</label><input id="eDoctor" value="${esc(e.doctor)}" placeholder="Ex : Dr Dupont"></div><div class="field"><label>Notes</label><textarea id="eNotes">${esc(e.notes)}</textarea></div>`;
+  const ov=openModal(id?'Modifier l\'événement':'Nouvel événement',body,async(ov)=>{const title=val(ov,'eTitle');if(!title){toast('Indique un titre');return false;}const data={category:ov.querySelector('#eCat').value,title,memberId:ov.querySelector('#eMember').value||null,date:ov.querySelector('#eDate').value||todayStr(),endDate:ov.querySelector('#eEnd').value,doctor:val(ov,'eDoctor'),notes:val(ov,'eNotes')};if(id)Object.assign(e,data);else state.events.push({id:uid(),...data});await saveState();render();toast('Enregistré');});
+  ov.querySelector('#eCat').onchange=ev=>{ov.querySelector('#docField').style.display=ev.target.value==='rdv'?'':'none';};
+  if(id){const d=ov.querySelector('[data-cancel]');d.textContent='Supprimer';d.className='btn danger';d.onclick=()=>{if(confirm('Supprimer cet événement ?')){state.events=state.events.filter(x=>x.id!==id);saveState();render();toast('Supprimé');ov.remove();}};}
+}
+function dayModal(ds){
+  const evs=eventsForDay(ds);const d=parseD(ds);
+  const list=evs.length?evs.map(e=>{const c=e._cat==='anniv'?{color:'#e26aa7',label:'Anniversaire'}:(CATS[e._cat]||CATS.autre);return `<div class="agenda-item" style="box-shadow:none"><div style="flex:1"><div class="ai-title"><span class="cat-dot" style="background:${c.color}"></span>${esc(e.title)}</div><div class="ai-sub">${esc([c.label,memberName(e.memberId),e.doctor].filter(Boolean).join(' · '))}</div></div>${e.id?`<button class="btn ghost sm" data-ev="${e.id}">Modifier</button>`:''}</div>`;}).join(''):`<div class="empty">Rien ce jour-là</div>`;
+  const ov=openModal(d.getDate()+' '+MONTHS_FULL[d.getMonth()]+' '+d.getFullYear(),list+`<div class="list-add" style="margin-top:10px"><button class="btn primary block" id="dayAdd">+ Ajouter un événement ce jour</button></div>`,null);
+  ov.querySelector('#dayAdd').onclick=()=>{ov.remove();eventModal(null,{category:'rdv',date:ds});};
+  ov.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{ov.remove();eventModal(b.dataset.ev);});
+}
+function emergencyModal(){
+  const ec=(state.settings&&state.settings.emergencyContact)||{};
+  const cards=state.members.map(m=>{const meds=activeMeds().filter(x=>x.health.memberId===m.id).map(x=>x.med.name).join(', ');return `<div class="ecard"><h4>🚨 ${esc(m.name)} <span style="color:var(--muted);font-weight:500;font-size:14px">· ${ageText(m.dob)}</span></h4><div class="erow"><span class="k">Groupe sanguin</span><b>${esc(m.bloodType)||'non renseigné'}</b></div><div class="erow"><span class="k">Allergies</span><b style="color:var(--amber)">${esc(m.allergies)||'aucune connue'}</b></div><div class="erow"><span class="k">Traitements en cours</span><b>${esc(meds)||'aucun'}</b></div><div class="erow"><span class="k">Médecin traitant</span><b>${esc(m.doctor)||'—'}</b></div></div>`;}).join('')||`<div class="empty">Aucun membre</div>`;
+  const contact=ec.name?`<div class="card"><div class="erow" style="display:flex;gap:10px"><span class="k" style="color:var(--muted);font-weight:600;min-width:120px">Contact d'urgence</span><b>${esc(ec.name)} ${ec.phone?'· '+esc(ec.phone):''}</b></div></div>`:'';
+  const ov=openModal('Fiche d\'urgence',cards+contact+`<div class="list-add"><button class="btn primary block" id="printE">🖨️ Imprimer / Enregistrer en PDF</button></div>`,null);
+  ov.querySelector('#printE').onclick=()=>window.print();
+}
+
+/* ---------------- Réglages ---------------- */
+function settingsModal(){
+  const s=state.settings||(state.settings={});const ec=s.emergencyContact||{};const notifOn=!!s.notif;
+  const fileInfo=hasSaveFSA?'Chrome : enregistrement direct dans le fichier choisi':'Safari/iPhone : le fichier est téléchargé, à ranger dans iCloud/OneDrive';
+  const body=`
+    <div class="setrow"><div><div class="st">💾 Fichier de données (chiffré)</div><div class="sd">${fileInfo}</div></div><div style="white-space:nowrap"><button class="btn primary sm" id="sSave">Enregistrer</button> <button class="btn ghost sm" id="sOpen">Ouvrir</button></div></div>
+    <div class="setrow"><div><div class="st">🔑 Mot de passe</div><div class="sd">Change le mot de passe de chiffrement</div></div><div><button class="btn ghost sm" id="sPw">Changer</button></div></div>
+    <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
+    <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
+    <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div>`;
+  const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
+  ov.querySelector('#sSave').onclick=()=>saveToFile();
+  ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
+  ov.querySelector('#sPw').onclick=()=>showGate({title:'Nouveau mot de passe',sub:'Choisis un nouveau mot de passe. Note-le bien.',create:true,allowCancel:true,onSubmit:async(pw)=>{masterPw=pw;await saveState();toast('Mot de passe changé');return null;}});
+  const tn=ov.querySelector('#toggleNotif');tn.onclick=async()=>{if(notifOn){s.notif=false;await saveState();ov.remove();settingsModal();return;}if(!('Notification'in window)){toast('Notifications non supportées ici');return;}const p=await Notification.requestPermission();if(p==='granted'){s.notif=true;await saveState();ov.remove();settingsModal();toast('Notifications activées');}else toast('Permission refusée');};
+}
+
+/* ---------------- Écran de déverrouillage / création ---------------- */
+function showGate({title,sub,create,onSubmit,allowCancel}){
+  const lk=document.createElement('div');lk.className='lock';
+  lk.innerHTML=`<div class="logo">🔒</div><h2>${esc(title)}</h2>${sub?`<div style="color:var(--muted);max-width:340px;text-align:center;line-height:1.5">${esc(sub)}</div>`:''}
+    <input id="g1" type="password" placeholder="Mot de passe" autocomplete="off">
+    ${create?`<input id="g2" type="password" placeholder="Confirme le mot de passe" autocomplete="off">`:''}
+    <div class="err" id="gErr"></div>
+    <button class="btn primary" id="gOk" style="width:240px">${create?'Créer':'Déverrouiller'}</button>
+    ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:240px">Annuler</button>`:''}`;
+  document.body.appendChild(lk);
+  const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
+  const submit=async()=>{const pw=i1.value;
+    if(create){if(pw.length<4){err.textContent='4 caractères minimum';return;}if(pw!==lk.querySelector('#g2').value){err.textContent='Les mots de passe ne correspondent pas';return;}}
+    else if(!pw){return;}
+    const ok=lk.querySelector('#gOk');ok.disabled=true;const r=await onSubmit(pw);ok.disabled=false;
+    if(r){err.textContent=r;i1.value='';if(lk.querySelector('#g2'))lk.querySelector('#g2').value='';}else lk.remove();
+  };
+  lk.querySelector('#gOk').onclick=submit;
+  i1.onkeydown=e=>{if(e.key==='Enter')submit();};
+  const i2=lk.querySelector('#g2');if(i2)i2.onkeydown=e=>{if(e.key==='Enter')submit();};
+  const cc=lk.querySelector('#gCancel');if(cc)cc.onclick=()=>lk.remove();
+}
+
+/* ---------------- Barre d'outils ---------------- */
+document.getElementById('btnSettings').onclick=()=>settingsModal();
+document.getElementById('btnSaveFile').onclick=()=>saveToFile();
+document.getElementById('btnOpen').onclick=()=>openFromFile();
+
+/* ---------------- Démarrage ---------------- */
+(async()=>{
+  if(!(window.crypto&&crypto.subtle)){document.getElementById('app').innerHTML='<div class="empty"><div class="big">⚠️</div>Ce navigateur ne permet pas le chiffrement en local. Ouvre le fichier dans Safari ou un Chrome récent.</div>';return;}
+  const stored=await idbGet();
+  if(!stored){
+    showGate({title:'Protège tes données',sub:'Choisis un mot de passe : il chiffre toutes tes données (santé, photos…). Note-le bien, il est irrécupérable en cas d\'oubli.',create:true,onSubmit:async(pw)=>{masterPw=pw;state=JSON.parse(JSON.stringify(EMPTY));await saveState();render();return null;}});
+  }else if(stored.enc){
+    showGate({title:'Famio',sub:'Entre ton mot de passe',create:false,onSubmit:async(pw)=>{try{const data=await decryptPkg(stored,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;render();maybeNotify();return null;}catch(e){return 'Mot de passe incorrect';}}});
+  }else{
+    /* migration des données v3 (non chiffrées) */
+    showGate({title:'Sécurise tes données',sub:'Tu as déjà des données. Choisis un mot de passe pour les chiffrer dès maintenant. Note-le bien.',create:true,onSubmit:async(pw)=>{masterPw=pw;state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),stored);await saveState();render();return null;}});
+  }
+})();
+</script>
+</body>
+</html>
