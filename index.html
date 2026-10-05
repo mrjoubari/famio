@@ -8,6 +8,8 @@
 <meta name="theme-color" content="#2f6fed">
 <title>Famio</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👨‍👩‍👧‍👦</text></svg>">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
     --bg:#f4f6fb; --surface:#ffffff; --surface-2:#f0f3f9;
@@ -205,7 +207,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v10</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v11</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -676,7 +678,7 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v10</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v11</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
