@@ -309,7 +309,7 @@ async function openFromFile(){
   let pkg;try{pkg=JSON.parse(text);}catch(e){toast('⚠️ Fichier illisible');return;}
   if(!pkg||!pkg.enc){toast('⚠️ Fichier non reconnu');return;}
   showGate({title:'Ouvrir le fichier',sub:'Entre le mot de passe de ce fichier',create:false,allowCancel:true,onSubmit:async(pw)=>{
-    try{const data=await decryptPkg(pkg,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;await saveState();view={name:'home'};setNav();render();maybeNotify();toast('Fichier chargé');return null;}
+    try{const data=await decryptPkg(pkg,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;await saveState();document.querySelectorAll('.lock').forEach(l=>l.remove());view={name:'home'};setNav();render();maybeNotify();toast('Fichier chargé');return null;}
     catch(e){return 'Mot de passe incorrect';}
   }});
 }
@@ -574,14 +574,15 @@ function settingsModal(){
 }
 
 /* ---------------- Écran de déverrouillage / création ---------------- */
-function showGate({title,sub,create,onSubmit,allowCancel}){
+function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecondary}){
   const lk=document.createElement('div');lk.className='lock';
   lk.innerHTML=`<div class="logo">🔒</div><h2>${esc(title)}</h2>${sub?`<div style="color:var(--muted);max-width:340px;text-align:center;line-height:1.5">${esc(sub)}</div>`:''}
     <input id="g1" type="password" placeholder="Mot de passe" autocomplete="off">
     ${create?`<input id="g2" type="password" placeholder="Confirme le mot de passe" autocomplete="off">`:''}
     <div class="err" id="gErr"></div>
-    <button class="btn primary" id="gOk" style="width:240px">${create?'Créer':'Déverrouiller'}</button>
-    ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:240px">Annuler</button>`:''}`;
+    <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
+    ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
+    ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
@@ -593,6 +594,7 @@ function showGate({title,sub,create,onSubmit,allowCancel}){
   lk.querySelector('#gOk').onclick=submit;
   i1.onkeydown=e=>{if(e.key==='Enter')submit();};
   const i2=lk.querySelector('#g2');if(i2)i2.onkeydown=e=>{if(e.key==='Enter')submit();};
+  const sc=lk.querySelector('#gSecond');if(sc)sc.onclick=()=>onSecondary();
   const cc=lk.querySelector('#gCancel');if(cc)cc.onclick=()=>lk.remove();
 }
 
@@ -606,9 +608,9 @@ document.getElementById('btnOpen').onclick=()=>openFromFile();
   if(!(window.crypto&&crypto.subtle)){document.getElementById('app').innerHTML='<div class="empty"><div class="big">⚠️</div>Ce navigateur ne permet pas le chiffrement en local. Ouvre le fichier dans Safari ou un Chrome récent.</div>';return;}
   const stored=await idbGet();
   if(!stored){
-    showGate({title:'Protège tes données',sub:'Choisis un mot de passe : il chiffre toutes tes données (santé, photos…). Note-le bien, il est irrécupérable en cas d\'oubli.',create:true,onSubmit:async(pw)=>{masterPw=pw;state=JSON.parse(JSON.stringify(EMPTY));await saveState();render();return null;}});
+    showGate({title:'Protège tes données',sub:'Nouveau sur cet appareil ? Choisis un mot de passe pour démarrer. Tu as déjà un fichier (iCloud/OneDrive) ? Touche « J\'ai déjà un fichier ».',create:true,secondaryLabel:'📂 J\'ai déjà un fichier',onSecondary:openFromFile,onSubmit:async(pw)=>{masterPw=pw;state=JSON.parse(JSON.stringify(EMPTY));await saveState();render();return null;}});
   }else if(stored.enc){
-    showGate({title:'Famio',sub:'Entre ton mot de passe',create:false,onSubmit:async(pw)=>{try{const data=await decryptPkg(stored,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;render();maybeNotify();return null;}catch(e){return 'Mot de passe incorrect';}}});
+    showGate({title:'Famio',sub:'Entre ton mot de passe',create:false,secondaryLabel:'📂 Ouvrir un fichier',onSecondary:openFromFile,onSubmit:async(pw)=>{try{const data=await decryptPkg(stored,pw);state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),data);masterPw=pw;render();maybeNotify();return null;}catch(e){return 'Mot de passe incorrect';}}});
   }else{
     /* migration des données v3 (non chiffrées) */
     showGate({title:'Sécurise tes données',sub:'Tu as déjà des données. Choisis un mot de passe pour les chiffrer dès maintenant. Note-le bien.',create:true,onSubmit:async(pw)=>{masterPw=pw;state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),stored);await saveState();render();return null;}});
