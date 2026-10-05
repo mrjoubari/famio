@@ -44,4 +44,4 @@ choisis de déplacer toi-même).
 
 ---
 
-© 2026 **Mr Joubari** — Tous droits réservés. Voir le fichier `LICENSE`.
+© 2026 **Mr EL Joubari** — Tous droits réservés. Voir le fichier `LICENSE`.
