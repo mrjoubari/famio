@@ -205,7 +205,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v6</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v10</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -586,28 +586,40 @@ function parseRx(text){
   return {memberId,date,doctor,durN,durUnit,text:text.trim()};
 }
 function computeEnd(start,n,unit){const d=parseD(start);if(!d||!n)return'';if(unit==='semaine')d.setDate(d.getDate()+n*7);else if(unit==='mois')d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);return ymd(d);}
-const COMMON_MEDS=['doliprane','paracétamol','paracetamol','efferalgan','dafalgan','advil','ibuprofène','ibuprofene','nurofen','amoxicilline','augmentin','clamoxyl','smecta','spasfon','ventoline','aerius','clarityne','maalox','gaviscon','motilium','imodium','toplexil','azithromycine','solupred','célestène','celestene','orelox','cétirizine','cetirizine','desloratadine','humex','forlax','josacine','rhinofluimucil','mucomyst','pivalone','cortancyl','vogalene','débridat','debridat'];
+const COMMON_MEDS=['doliprane','paracétamol','paracetamol','efferalgan','dafalgan','advil','ibuprofène','ibuprofene','nurofen','amoxicilline','augmentin','clamoxyl','smecta','spasfon','ventoline','salbutamol','seretide','sérétide','salmeterol','fluticasone','symbicort','flixotide','becotide','aerius','clarityne','maalox','gaviscon','motilium','imodium','toplexil','azithromycine','solupred','célestène','celestene','orelox','cétirizine','cetirizine','desloratadine','humex','forlax','josacine','rhinofluimucil','mucomyst','pivalone','cortancyl','vogalene','débridat','debridat'];
+const DOSE_RE=/(\d+(?:[  ]\d{3})+|\d+[.,]?\d*)\s?(mg|µg|ug|mcg|g|ml|ui|%)\b/i;
+const BRAND_RE=/\(([A-ZÉÈÀ][A-Z0-9ÉÈÀ'\- ]{2,})\)/;
+const FORM_RE=/\b(susp|inj|cpr|cp|comprim|g[ée]lul|sirop|pulv|pommade|cr[eè]me|sachet|suppo|collyre|goutte|seringue|solution|nasal|inhal)\b/i;
+function isMedLine(l){const low=l.toLowerCase();if(DOSE_RE.test(l)||BRAND_RE.test(l)||COMMON_MEDS.some(k=>low.includes(k)))return true;return FORM_RE.test(l)&&!/^\s*\d/.test(l)&&/[A-ZÉÈÀ]{3,}/.test(l);}
 function detectMeds(text){
+  const lines=(text||'').split(/\n+/).map(l=>l.trim()).filter(l=>l.length>=3);
   const out=[],seen=new Set();
-  (text||'').split(/\n+/).forEach(raw=>{
-    const line=raw.trim();if(line.length<3)return;
-    const lower=line.toLowerCase();
-    const doseM=line.match(/(\d+[.,]?\d*)\s?(mg|g|ml|µg|mcg|ui|%)\b/i);
-    const known=COMMON_MEDS.find(k=>lower.includes(k));
-    if(!doseM&&!known)return;
-    let name='';
-    if(known)name=known.charAt(0).toUpperCase()+known.slice(1);
-    else{let before=line.slice(0,doseM.index).replace(/^[\-•*·\d.\)\s]+/,'').trim();name=(before.split(/\s{2,}|,|;/)[0]||'').trim();if(name.length<2)name=line.replace(/^[\-•*·\d.\)\s]+/,'').trim().slice(0,40);}
-    if(!name)return;
-    const key=name.toLowerCase();if(seen.has(key))return;seen.add(key);
-    const dose=doseM?doseM[1].replace(',','.'):'';const unit=doseM?doseM[2].toLowerCase():'';
-    let perDay='';const pd=lower.match(/(\d+)\s*(?:fois|x)\s*(?:par|\/)?\s*jour/);
-    if(pd)perDay=pd[1];else{let c=0;if(/\bmatin\b/.test(lower))c++;if(/\bmidi\b/.test(lower))c++;if(/\bsoir\b/.test(lower))c++;if(c)perDay=String(c);}
-    let durationDays='';const du=lower.match(/pendant\s+(\d+)\s*(jour|semaine|mois)/);
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];const lower=line.toLowerCase();
+    if(!isMedLine(line))continue;
+    // nom : marque entre parenthèses > médicament connu > début de ligne
+    let name='';const bm=line.match(BRAND_RE);const known=COMMON_MEDS.find(k=>lower.includes(k));
+    if(bm)name=((bm[1].split(/\s*\d/)[0]||bm[1]).trim()||bm[1].trim()).replace(/\s+/g,' ');
+    else if(known)name=known.charAt(0).toUpperCase()+known.slice(1);
+    else{let cut=line.length;const di=line.search(/\d/);if(di>=0)cut=Math.min(cut,di);const pi=line.indexOf('(');if(pi>=0)cut=Math.min(cut,pi);const fm=line.match(FORM_RE);if(fm)cut=Math.min(cut,fm.index);name=line.slice(0,cut).replace(/^[\-•*·\s]+/,'').replace(/[,;\s]+$/,'').trim().slice(0,40);}
+    if(!name||name.length<2)continue;
+    if(name===name.toUpperCase())name=name.charAt(0)+name.slice(1).toLowerCase();
+    const key=name.toLowerCase();if(seen.has(key))continue;seen.add(key);
+    // dose
+    const dM=line.match(DOSE_RE);let dose=dM?dM[1].replace(',','.'):'';let unit=dM?dM[2].toLowerCase().replace(/^ug$/,'µg').replace(/^ui$/,'UI'):'';
+    // contexte posologie : la ligne + jusqu'à 3 lignes suivantes (avant le prochain médicament)
+    let ctx=line;for(let j=i+1;j<Math.min(lines.length,i+4);j++){if(isMedLine(lines[j]))break;ctx+=' '+lines[j];}
+    const cl=ctx.toLowerCase();
+    let perDay='';const pd=cl.match(/(\d+)\s*(?:fois|x)\s*(?:par|\/)?\s*jour/)||cl.match(/(\d+)\s*(?:\/|par)\s*jour/);
+    if(pd)perDay=pd[1];else{let c=0;if(/\bmatin\b/.test(cl))c++;if(/\bmidi\b/.test(cl))c++;if(/\bsoir\b/.test(cl))c++;if(c)perDay=String(c);}
+    let durationDays='';const du=cl.match(/(?:pendant|pour)\s+(\d+)\s*(jour|semaine|mois)/)||cl.match(/(\d+)\s*(jour|semaine|mois)\b/);
     if(du){const n=+du[1];durationDays=String(du[2]==='semaine'?n*7:du[2]==='mois'?n*30:n);}
-    out.push({name,dose,unit,perDay,durationDays});
-  });
-  return out.slice(0,12);
+    let notes='';const nm=ctx.match(/(\d+\s*(?:inhalation|bouffée|bouffee|pulvérisation|pulverisation|comprimé|comprime|cp|cachet|gélule|gelule|ampoule|sachet|goutte|dose|application|cuillère|cuillere)s?[^.\n]{0,50})/i);
+    if(nm)notes=nm[1].trim();
+    out.push({name,dose,unit,perDay,durationDays,notes});
+    if(out.length>=15)break;
+  }
+  return out;
 }
 async function scanOrdonnance(){
   if(!state.members.length){toast('Ajoute d\'abord un membre');return;}
@@ -634,7 +646,7 @@ function scanReview(p,photo){
   const meds=detectMeds(p.text||'');
   const memberOpts=state.members.map(m=>`<option value="${m.id}" ${m.id===p.memberId?'selected':''}>${esc(m.name)}</option>`).join('');
   const endPreview=p.durN?computeEnd(p.date||todayStr(),p.durN,p.durUnit):'';
-  const medsHtml=meds.length?meds.map((m,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><input type="checkbox" data-medchk="${i}" checked style="width:auto;flex:none"><span>💊 <b>${esc(m.name)}</b> ${esc([m.dose&&(m.dose+' '+m.unit),m.perDay&&(m.perDay+'×/jour'),m.durationDays&&(m.durationDays+' j')].filter(Boolean).join(' · '))}</span></label>`).join(''):`<div class="hint">Aucun médicament détecté automatiquement (ordonnance manuscrite ou format inhabituel). Tu pourras les ajouter à la main.</div>`;
+  const medsHtml=meds.length?meds.map((m,i)=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border)"><input type="checkbox" data-medchk="${i}" checked style="width:auto;flex:none;margin-top:3px"><span>💊 <b>${esc(m.name)}</b> ${esc([m.dose&&(m.dose+' '+m.unit),m.perDay&&(m.perDay+'×/jour'),m.durationDays&&(m.durationDays+' j')].filter(Boolean).join(' · '))}${m.notes?('<br><span style="color:var(--muted);font-size:12px">'+esc(m.notes)+'</span>'):''}</span></label>`).join(''):`<div class="hint">Aucun médicament détecté automatiquement (ordonnance manuscrite ou format inhabituel). Tu pourras les ajouter à la main.</div>`;
   const body=`
     <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px"><img src="${photo}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--border)"><div class="hint" style="flex:1">Vérifie et corrige les infos lues. ${p.memberId?'':'<b>Membre non reconnu</b> — choisis-le.'}</div></div>
     <div class="field"><label>Membre *</label><select id="sMember">${memberOpts}</select></div>
@@ -647,7 +659,7 @@ function scanReview(p,photo){
     const memberId=ov.querySelector('#sMember').value;
     const chosen=[];ov.querySelectorAll('[data-medchk]').forEach(c=>{if(c.checked)chosen.push(meds[+c.dataset.medchk]);});
     const desc=[ov.querySelector('#sDoctor').value?('Médecin : '+ov.querySelector('#sDoctor').value):'',ov.querySelector('#sText').value].filter(Boolean).join('\n\n');
-    state.health.push({id:uid(),memberId,title:val(ov,'sTitle')||'Ordonnance',description:desc,startDate:ov.querySelector('#sDate').value||todayStr(),endDate:ov.querySelector('#sEnd').value,meds:chosen.map(m=>({name:m.name,dose:m.dose,unit:m.unit,perDay:m.perDay,durationDays:m.durationDays,notes:''})),rx:[photo]});
+    state.health.push({id:uid(),memberId,title:val(ov,'sTitle')||'Ordonnance',description:desc,startDate:ov.querySelector('#sDate').value||todayStr(),endDate:ov.querySelector('#sEnd').value,meds:chosen.map(m=>({name:m.name,dose:m.dose,unit:m.unit,perDay:m.perDay,durationDays:m.durationDays,notes:m.notes||''})),rx:[photo]});
     await saveState();
     view={name:'member',id:memberId,tab:'sante'};setNav();render();
     toast('Ordonnance enregistrée');
@@ -664,7 +676,7 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v6</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v10</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
