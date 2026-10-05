@@ -4,7 +4,7 @@
 membres, médicaments et ordonnances, rendez-vous médicaux, calendrier, vaccins,
 courbe de croissance des enfants, et fiche d'urgence.
 
-Créée et conçue par **Mr Joubari**.
+Créée et conçue par **Mr EL Joubari**.
 
 ## Ce qui rend Famio différente
 
