@@ -205,7 +205,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio</span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v6</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -256,7 +256,8 @@ function initials(name){return(name||'?').split(' ').map(w=>w[0]).filter(Boolean
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function avatarHTML(m,cls=''){if(m&&m.photo)return`<div class="avatar ${cls}"><img src="${m.photo}" alt=""></div>`;return`<div class="avatar ${cls}">${m&&m.name?esc(initials(m.name)):'👤'}</div>`;}
 function memberName(id){const m=state.members.find(x=>x.id===id);return m?m.name:'';}
-function resizeImage(file,max,quality){return new Promise(res=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let{width:w,height:h}=img;if(w>h){if(w>max){h=h*max/w;w=max;}}else{if(h>max){w=w*max/h;h=max;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality));};img.src=r.result;};r.readAsDataURL(file);});}
+function resizeImage(file,max,quality){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error('read'));r.onload=()=>{const img=new Image();img.onerror=()=>rej(new Error('decode'));img.onload=()=>{try{let{width:w,height:h}=img;if(w>h){if(w>max){h=h*max/w;w=max;}}else{if(h>max){w=w*max/h;h=max;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',quality));}catch(e){rej(e);}};img.src=r.result;};r.readAsDataURL(file);});}
+function withTimeout(promise,ms){return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);}
 function pickFile(accept,cb){const i=document.createElement('input');i.type='file';i.accept=accept;i.onchange=e=>{if(e.target.files[0])cb(e.target.files[0]);};i.click();}
 function openImage(src){const lb=document.createElement('div');lb.className='lightbox';lb.innerHTML=`<img src="${src}">`;lb.onclick=()=>lb.remove();document.body.appendChild(lb);}
 
@@ -585,6 +586,29 @@ function parseRx(text){
   return {memberId,date,doctor,durN,durUnit,text:text.trim()};
 }
 function computeEnd(start,n,unit){const d=parseD(start);if(!d||!n)return'';if(unit==='semaine')d.setDate(d.getDate()+n*7);else if(unit==='mois')d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);return ymd(d);}
+const COMMON_MEDS=['doliprane','paracétamol','paracetamol','efferalgan','dafalgan','advil','ibuprofène','ibuprofene','nurofen','amoxicilline','augmentin','clamoxyl','smecta','spasfon','ventoline','aerius','clarityne','maalox','gaviscon','motilium','imodium','toplexil','azithromycine','solupred','célestène','celestene','orelox','cétirizine','cetirizine','desloratadine','humex','forlax','josacine','rhinofluimucil','mucomyst','pivalone','cortancyl','vogalene','débridat','debridat'];
+function detectMeds(text){
+  const out=[],seen=new Set();
+  (text||'').split(/\n+/).forEach(raw=>{
+    const line=raw.trim();if(line.length<3)return;
+    const lower=line.toLowerCase();
+    const doseM=line.match(/(\d+[.,]?\d*)\s?(mg|g|ml|µg|mcg|ui|%)\b/i);
+    const known=COMMON_MEDS.find(k=>lower.includes(k));
+    if(!doseM&&!known)return;
+    let name='';
+    if(known)name=known.charAt(0).toUpperCase()+known.slice(1);
+    else{let before=line.slice(0,doseM.index).replace(/^[\-•*·\d.\)\s]+/,'').trim();name=(before.split(/\s{2,}|,|;/)[0]||'').trim();if(name.length<2)name=line.replace(/^[\-•*·\d.\)\s]+/,'').trim().slice(0,40);}
+    if(!name)return;
+    const key=name.toLowerCase();if(seen.has(key))return;seen.add(key);
+    const dose=doseM?doseM[1].replace(',','.'):'';const unit=doseM?doseM[2].toLowerCase():'';
+    let perDay='';const pd=lower.match(/(\d+)\s*(?:fois|x)\s*(?:par|\/)?\s*jour/);
+    if(pd)perDay=pd[1];else{let c=0;if(/\bmatin\b/.test(lower))c++;if(/\bmidi\b/.test(lower))c++;if(/\bsoir\b/.test(lower))c++;if(c)perDay=String(c);}
+    let durationDays='';const du=lower.match(/pendant\s+(\d+)\s*(jour|semaine|mois)/);
+    if(du){const n=+du[1];durationDays=String(du[2]==='semaine'?n*7:du[2]==='mois'?n*30:n);}
+    out.push({name,dose,unit,perDay,durationDays});
+  });
+  return out.slice(0,12);
+}
 async function scanOrdonnance(){
   if(!state.members.length){toast('Ajoute d\'abord un membre');return;}
   pickFile('image/*',async f=>{
@@ -592,13 +616,13 @@ async function scanOrdonnance(){
     scanProgress(true,0);
     let text='';
     try{
-      await loadTesseract();
-      const r=await Tesseract.recognize(photo,'fra',{logger:m=>{if(m.status==='recognizing text')scanProgress(true,Math.round((m.progress||0)*100));}});
+      await withTimeout(loadTesseract(),25000);
+      const r=await withTimeout(Tesseract.recognize(photo,'fra',{logger:m=>{if(m.status==='recognizing text')scanProgress(true,Math.round((m.progress||0)*100));}}),70000);
       text=(r&&r.data&&r.data.text)||'';
     }catch(e){
       scanProgress(false);
-      toast('Lecture impossible (connexion requise au 1er scan). Ordonnance jointe quand même.');
-      // fallback: just attach the photo to a new treatment
+      toast('Lecture auto indisponible — l\'ordonnance est jointe, saisis à la main.');
+      // repli : on ouvre quand même la fenêtre avec la photo
       scanReview({memberId:state.members[0].id,date:'',doctor:'',durN:0,durUnit:'',text:''},photo);
       return;
     }
@@ -607,22 +631,26 @@ async function scanOrdonnance(){
   });
 }
 function scanReview(p,photo){
+  const meds=detectMeds(p.text||'');
   const memberOpts=state.members.map(m=>`<option value="${m.id}" ${m.id===p.memberId?'selected':''}>${esc(m.name)}</option>`).join('');
   const endPreview=p.durN?computeEnd(p.date||todayStr(),p.durN,p.durUnit):'';
+  const medsHtml=meds.length?meds.map((m,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><input type="checkbox" data-medchk="${i}" checked style="width:auto;flex:none"><span>💊 <b>${esc(m.name)}</b> ${esc([m.dose&&(m.dose+' '+m.unit),m.perDay&&(m.perDay+'×/jour'),m.durationDays&&(m.durationDays+' j')].filter(Boolean).join(' · '))}</span></label>`).join(''):`<div class="hint">Aucun médicament détecté automatiquement (ordonnance manuscrite ou format inhabituel). Tu pourras les ajouter à la main.</div>`;
   const body=`
     <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px"><img src="${photo}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--border)"><div class="hint" style="flex:1">Vérifie et corrige les infos lues. ${p.memberId?'':'<b>Membre non reconnu</b> — choisis-le.'}</div></div>
     <div class="field"><label>Membre *</label><select id="sMember">${memberOpts}</select></div>
     <div class="field"><label>Intitulé</label><input id="sTitle" value="Ordonnance${p.date?' du '+esc(fmtDate(p.date)):''}"></div>
     <div class="row2"><div class="field"><label>Date de l'ordonnance</label><input type="date" id="sDate" value="${esc(p.date)||todayStr()}"></div><div class="field"><label>Fin (si durée)</label><input type="date" id="sEnd" value="${esc(endPreview)}"></div></div>
     <div class="field"><label>Médecin</label><input id="sDoctor" value="${esc(p.doctor)}" placeholder="Dr …"></div>
-    <div class="field"><label>Texte lu (pour recopier les médicaments)</label><textarea id="sText" rows="6" style="font-size:13px">${esc(p.text)||'(aucun texte détecté — ordonnance manuscrite ? La photo reste jointe.)'}</textarea><div class="hint">⚠️ Les médicaments ne sont pas remplis automatiquement (lecture non fiable). Après enregistrement, ouvre la fiche et ajoute-les depuis ce texte. Vérifie toujours les doses.</div></div>`;
+    <div class="field"><label>Médicaments détectés (à vérifier ⚠️)</label>${medsHtml}<div class="hint">Décoche ceux à ignorer. <b>Vérifie toujours les doses</b> sur l'ordonnance d'origine.</div></div>
+    <div class="field"><label>Texte lu complet</label><textarea id="sText" rows="5" style="font-size:13px">${esc(p.text)}</textarea></div>`;
   const ov=openModal('Résultat du scan',body,async(ov)=>{
     const memberId=ov.querySelector('#sMember').value;
-    const desc=[p.doctor?('Médecin : '+ov.querySelector('#sDoctor').value):'',ov.querySelector('#sText').value].filter(Boolean).join('\n\n');
-    state.health.push({id:uid(),memberId,title:val(ov,'sTitle')||'Ordonnance',description:desc,startDate:ov.querySelector('#sDate').value||todayStr(),endDate:ov.querySelector('#sEnd').value,meds:[],rx:[photo]});
+    const chosen=[];ov.querySelectorAll('[data-medchk]').forEach(c=>{if(c.checked)chosen.push(meds[+c.dataset.medchk]);});
+    const desc=[ov.querySelector('#sDoctor').value?('Médecin : '+ov.querySelector('#sDoctor').value):'',ov.querySelector('#sText').value].filter(Boolean).join('\n\n');
+    state.health.push({id:uid(),memberId,title:val(ov,'sTitle')||'Ordonnance',description:desc,startDate:ov.querySelector('#sDate').value||todayStr(),endDate:ov.querySelector('#sEnd').value,meds:chosen.map(m=>({name:m.name,dose:m.dose,unit:m.unit,perDay:m.perDay,durationDays:m.durationDays,notes:''})),rx:[photo]});
     await saveState();
     view={name:'member',id:memberId,tab:'sante'};setNav();render();
-    toast('Ordonnance enregistrée — ajoute les médicaments');
+    toast('Ordonnance enregistrée');
   },'Enregistrer');
 }
 
@@ -636,7 +664,7 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v6</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
