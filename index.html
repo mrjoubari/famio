@@ -358,7 +358,7 @@ function renderHealth(){
   const bars=`<div class="card"><div class="bars">${counts.map((c,i)=>`<div class="bar-wrap"><div class="bar" style="height:${Math.round(c/maxC*100)}%">${c?`<span>${c}</span>`:''}</div><div class="bar-lbl">${labels[i]}</div></div>`).join('')}</div></div>`;
   const refRows=state.members.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.bloodType)||'—'}</td><td>${m.allergies?`<span style="color:var(--amber);font-weight:600">${esc(m.allergies)}</span>`:'—'}</td></tr>`).join('');
   const ref=`<table class="reftable"><tr><th>Membre</th><th>Groupe sanguin</th><th>Allergies</th></tr>${refRows}</table>`;
-  return `${stats}${remHtml}${treat}${rdv}<h2 class="section">Maladies sur 12 mois</h2>${bars}<h2 class="section">Infos vitales (allergies & groupes sanguins)</h2>${ref}<div class="list-add" style="margin-top:16px"><button class="btn danger" id="emergencyBtn">🚨 Fiche d'urgence imprimable</button></div>`;
+  return `${stats}${remHtml}${treat}${rdv}<h2 class="section">Maladies sur 12 mois</h2>${bars}<h2 class="section">Infos vitales (allergies & groupes sanguins)</h2>${ref}<div class="list-add" style="margin-top:16px"><button class="btn primary" id="scanRx">📷 Scanner une ordonnance</button><button class="btn danger" id="emergencyBtn">🚨 Fiche d'urgence imprimable</button></div>`;
 }
 
 /* ---------------- Membre ---------------- */
@@ -487,6 +487,7 @@ function bind(){
   const tmo=q('#toMonth');if(tmo)tmo.onclick=()=>{view.mode='mois';render();};
   qa('[data-day]').forEach(el=>el.onclick=()=>dayModal(el.dataset.day));
   const eb=q('#emergencyBtn');if(eb)eb.onclick=()=>emergencyModal();
+  const sr=q('#scanRx');if(sr)sr.onclick=()=>scanOrdonnance();
 }
 
 /* ---------------- Modals ---------------- */
@@ -553,6 +554,76 @@ function emergencyModal(){
   const contact=ec.name?`<div class="card"><div class="erow" style="display:flex;gap:10px"><span class="k" style="color:var(--muted);font-weight:600;min-width:120px">Contact d'urgence</span><b>${esc(ec.name)} ${ec.phone?'· '+esc(ec.phone):''}</b></div></div>`:'';
   const ov=openModal('Fiche d\'urgence',cards+contact+`<div class="list-add"><button class="btn primary block" id="printE">🖨️ Imprimer / Enregistrer en PDF</button></div>`,null);
   ov.querySelector('#printE').onclick=()=>window.print();
+}
+
+/* ---------------- Scan d'ordonnance (OCR local) ---------------- */
+function loadTesseract(){
+  return new Promise((res,rej)=>{
+    if(window.Tesseract)return res();
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload=()=>res();s.onerror=()=>rej(new Error('cdn'));
+    document.head.appendChild(s);
+  });
+}
+function scanProgress(show,pct){
+  let o=document.getElementById('scanov');
+  if(show){
+    if(!o){o=document.createElement('div');o.id='scanov';o.className='lock';o.innerHTML=`<div class="logo">📷</div><h2>Lecture de l'ordonnance…</h2><div id="scanpct" style="color:var(--muted)">Préparation…</div><div style="color:var(--muted);font-size:13px;max-width:320px;text-align:center">La lecture se fait sur ton appareil. Ça peut prendre jusqu'à une minute.</div>`;document.body.appendChild(o);}
+    if(pct!=null)o.querySelector('#scanpct').textContent=pct+' %';
+  }else if(o)o.remove();
+}
+function parseRx(text){
+  const lower=text.toLowerCase();let memberId=null;
+  for(const m of state.members){const fn=(m.name.split(' ')[0]||'').toLowerCase();if(fn.length>=3&&lower.includes(fn)){memberId=m.id;break;}}
+  let date='';const dm=text.match(/(\d{1,2})[\/.\- ](\d{1,2})[\/.\- ](\d{2,4})/);
+  if(dm){let dd=dm[1],mm=dm[2],yy=dm[3];if(yy.length===2)yy='20'+yy;date=`${yy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;}
+  let doctor='';const dr=text.match(/(?:Dr|Docteur|Dr\.)\s*\.?\s*([A-ZÉÈÀ][A-Za-zéèêàÉÈ'\-]+(?:\s+[A-ZÉÈÀ][A-Za-zéèêàÉÈ'\-]+)?)/);
+  if(dr)doctor='Dr '+dr[1].trim();
+  let durN=0,durUnit='';const du=lower.match(/pendant\s+(\d+)\s*(jour|semaine|mois)/);
+  if(du){durN=+du[1];durUnit=du[2];}
+  return {memberId,date,doctor,durN,durUnit,text:text.trim()};
+}
+function computeEnd(start,n,unit){const d=parseD(start);if(!d||!n)return'';if(unit==='semaine')d.setDate(d.getDate()+n*7);else if(unit==='mois')d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);return ymd(d);}
+async function scanOrdonnance(){
+  if(!state.members.length){toast('Ajoute d\'abord un membre');return;}
+  pickFile('image/*',async f=>{
+    let photo;try{photo=await resizeImage(f,1600,0.9);}catch(e){toast('Image illisible');return;}
+    scanProgress(true,0);
+    let text='';
+    try{
+      await loadTesseract();
+      const r=await Tesseract.recognize(photo,'fra',{logger:m=>{if(m.status==='recognizing text')scanProgress(true,Math.round((m.progress||0)*100));}});
+      text=(r&&r.data&&r.data.text)||'';
+    }catch(e){
+      scanProgress(false);
+      toast('Lecture impossible (connexion requise au 1er scan). Ordonnance jointe quand même.');
+      // fallback: just attach the photo to a new treatment
+      scanReview({memberId:state.members[0].id,date:'',doctor:'',durN:0,durUnit:'',text:''},photo);
+      return;
+    }
+    scanProgress(false);
+    scanReview(parseRx(text),photo);
+  });
+}
+function scanReview(p,photo){
+  const memberOpts=state.members.map(m=>`<option value="${m.id}" ${m.id===p.memberId?'selected':''}>${esc(m.name)}</option>`).join('');
+  const endPreview=p.durN?computeEnd(p.date||todayStr(),p.durN,p.durUnit):'';
+  const body=`
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px"><img src="${photo}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--border)"><div class="hint" style="flex:1">Vérifie et corrige les infos lues. ${p.memberId?'':'<b>Membre non reconnu</b> — choisis-le.'}</div></div>
+    <div class="field"><label>Membre *</label><select id="sMember">${memberOpts}</select></div>
+    <div class="field"><label>Intitulé</label><input id="sTitle" value="Ordonnance${p.date?' du '+esc(fmtDate(p.date)):''}"></div>
+    <div class="row2"><div class="field"><label>Date de l'ordonnance</label><input type="date" id="sDate" value="${esc(p.date)||todayStr()}"></div><div class="field"><label>Fin (si durée)</label><input type="date" id="sEnd" value="${esc(endPreview)}"></div></div>
+    <div class="field"><label>Médecin</label><input id="sDoctor" value="${esc(p.doctor)}" placeholder="Dr …"></div>
+    <div class="field"><label>Texte lu (pour recopier les médicaments)</label><textarea id="sText" rows="6" style="font-size:13px">${esc(p.text)||'(aucun texte détecté — ordonnance manuscrite ? La photo reste jointe.)'}</textarea><div class="hint">⚠️ Les médicaments ne sont pas remplis automatiquement (lecture non fiable). Après enregistrement, ouvre la fiche et ajoute-les depuis ce texte. Vérifie toujours les doses.</div></div>`;
+  const ov=openModal('Résultat du scan',body,async(ov)=>{
+    const memberId=ov.querySelector('#sMember').value;
+    const desc=[p.doctor?('Médecin : '+ov.querySelector('#sDoctor').value):'',ov.querySelector('#sText').value].filter(Boolean).join('\n\n');
+    state.health.push({id:uid(),memberId,title:val(ov,'sTitle')||'Ordonnance',description:desc,startDate:ov.querySelector('#sDate').value||todayStr(),endDate:ov.querySelector('#sEnd').value,meds:[],rx:[photo]});
+    await saveState();
+    view={name:'member',id:memberId,tab:'sante'};setNav();render();
+    toast('Ordonnance enregistrée — ajoute les médicaments');
+  },'Enregistrer');
 }
 
 /* ---------------- Réglages ---------------- */
