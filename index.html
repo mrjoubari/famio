@@ -218,7 +218,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v15</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v17</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -236,7 +236,7 @@
 <script>
 /* ---------------- Stockage local (IndexedDB) ---------------- */
 const DB_NAME='familleDB', STORE='app', KEY='state';
-const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],tasks:[],settings:{}};
+const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],tasks:[],timetables:{},settings:{}};
 let state=JSON.parse(JSON.stringify(EMPTY));
 
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -303,16 +303,19 @@ async function encryptPkg(obj,pw){const salt=crypto.getRandomValues(new Uint8Arr
 async function decryptPkg(pkg,pw){const key=await deriveKey(pw,unb64(pkg.salt));const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(pkg.iv)},key,unb64(pkg.data));return JSON.parse(new TextDecoder().decode(pt));}
 
 /* ---------------- Fichier sur disque ---------------- */
+async function requestPersistence(){try{if(navigator.storage&&navigator.storage.persist){await navigator.storage.persist();}}catch(e){}}
+async function markBackup(){try{state.settings=state.settings||{};state.settings.lastBackup=new Date().toISOString();await idbPut(await encryptPkg(state,masterPw));}catch(e){}}
 async function saveToFile(){
   if(masterPw==null){toast('Crée d\'abord un mot de passe');return;}
   const text=JSON.stringify(await encryptPkg(state,masterPw));
   if(hasSaveFSA){
     try{
       if(!fileHandle)fileHandle=await window.showSaveFilePicker({suggestedName:'famio.famdb',types:[{description:'Données Famio (chiffré)',accept:{'application/octet-stream':['.famdb']}}]});
-      const w=await fileHandle.createWritable();await w.write(text);await w.close();toast('✅ Fichier enregistré');return;
+      const w=await fileHandle.createWritable();await w.write(text);await w.close();await markBackup();toast('✅ Fichier enregistré');return;
     }catch(e){if(e.name==='AbortError')return;console.warn(e);}
   }
   const blob=new Blob([text],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='famio.famdb';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  await markBackup();
   toast('Fichier téléchargé — range-le dans iCloud/OneDrive');
 }
 async function openFromFile(){
@@ -373,7 +376,12 @@ function renderHome(){
   if(todo.length){
     tasksHtml=`<h2 class="section">✓ Tâches à faire</h2>`+todo.slice(0,5).map(t=>{const badge=t.due?`<span class="chip ${daysBetween(t.due,today)<0?'care':'ok'}" style="margin-left:4px">${daysBetween(t.due,today)<0?'En retard':daysBetween(t.due,today)===0?'Auj.':daysBetween(t.due,today)===1?'Demain':fmtDate(t.due)}</span>`:'';return `<div class="task-item"><button class="task-check" data-toggletask="${t.id}"></button><div class="task-body" data-go="tasks"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${t.assignee?memberChip(t.assignee):'<span class="task-who">👪 Tout le monde</span>'}${badge}</div></div></div>`;}).join('')+(todo.length>5?`<button class="btn ghost sm" data-go="tasks" style="margin-top:2px">Voir les ${todo.length} tâches →</button>`:'');
   }
-  return `${greet}${stats}<h2 class="section">À venir (7 jours)</h2>${upHtml}${tasksHtml}<h2 class="section">Membres de la famille</h2><div class="grid">${cards}</div>`;
+  const lb=state.settings&&state.settings.lastBackup;const bdays=lb?Math.floor((Date.now()-new Date(lb).getTime())/86400000):null;
+  let backupNote='';
+  if(!lb||bdays>21){backupNote=`<div class="reminders" style="background:var(--accent-weak);border-color:var(--accent);margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>💾</span><span style="flex:1;color:var(--text)">${lb?`Dernière sauvegarde il y a ${bdays} jours.`:'Fais une première sauvegarde de sécurité.'} Garde une copie dans iCloud.</span><button class="btn primary sm" id="homeBackup">Sauvegarder</button></div></div>`;}
+  let schoolHtml='';const td=todaySchoolDay();
+  if(td){const parts=[];state.members.forEach(m=>{const tt=(state.timetables&&state.timetables[m.id])||[];const slots=tt.filter(s=>s.day===td).sort((a,b)=>a.start.localeCompare(b.start));if(slots.length)parts.push(`<div style="font-weight:700;margin-bottom:4px">${esc(m.name.split(' ')[0])}</div>`+slots.map(s=>`<div style="display:flex;gap:10px;padding:3px 0"><span style="color:var(--muted);font-size:13px;min-width:92px">${esc(s.start)}–${esc(s.end)}</span><span>${esc(s.subject)}${s.detail?' · '+esc(s.detail):''}</span></div>`).join(''));});if(parts.length)schoolHtml=`<h2 class="section">📚 Aujourd'hui à l'école</h2><div class="card">${parts.join('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">')}</div>`;}
+  return `${greet}${backupNote}${stats}<h2 class="section">À venir (7 jours)</h2>${upHtml}${schoolHtml}${tasksHtml}<h2 class="section">Membres de la famille</h2><div class="grid">${cards}</div>`;
 }
 
 /* ---------------- Santé globale ---------------- */
@@ -404,9 +412,9 @@ function renderMember(id){
   const m=state.members.find(x=>x.id===id);if(!m){view={name:'home'};return renderHome();}
   const tab=view.tab||'sante';
   const hero=`<div class="profile-hero">${avatarHTML(m)}<div style="flex:1;min-width:180px"><div class="h-name">${esc(m.name)}</div><div class="h-sub">${ageText(m.dob)} · né(e) le ${fmtDate(m.dob)}</div><div class="badges">${m.bloodType?`<div class="badge"><b>Groupe sanguin</b>${esc(m.bloodType)}</div>`:''}${m.allergies?`<div class="badge warn"><b>Allergies</b>${esc(m.allergies)}</div>`:''}</div></div></div>`;
-  const T=[['sante','🏥 Santé'],['vaccins','💉 Vaccins'],['vue','👓 Vue'],['croissance','📈 Croissance'],['rdv','🩺 RDV'],['infos','ℹ️ Infos']];
+  const T=[['sante','🏥 Santé'],['ecole','📚 École'],['vaccins','💉 Vaccins'],['vue','👓 Vue'],['croissance','📈 Croissance'],['rdv','🩺 RDV'],['infos','ℹ️ Infos']];
   const tabs=`<div class="tabs">${T.map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'active':''}">${l}</button>`).join('')}</div>`;
-  let body= tab==='sante'?renderSante(m):tab==='vaccins'?renderVaccines(m):tab==='vue'?renderVision(m):tab==='croissance'?renderGrowth(m):tab==='rdv'?renderRDV(m):renderInfos(m);
+  let body= tab==='sante'?renderSante(m):tab==='ecole'?renderSchool(m):tab==='vaccins'?renderVaccines(m):tab==='vue'?renderVision(m):tab==='croissance'?renderGrowth(m):tab==='rdv'?renderRDV(m):renderInfos(m);
   return `<button class="back" id="back">← Retour</button>${hero}${tabs}<div style="margin-top:16px">${body}</div>`;
 }
 
@@ -514,6 +522,95 @@ function visionModal(memberId,id,preset,photo){
   });
   const im=ov.querySelector('[data-rximg]');if(im)im.onclick=()=>openImage(im.dataset.rximg);
 }
+/* ---------------- École (emploi du temps + calendrier) ---------------- */
+const SCHOOL_DAYS=['','Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+const CP_TIMETABLE=[
+ {day:1,start:'08h15',end:'09h30',subject:'Maths',detail:'Nombres et Calculs'},
+ {day:1,start:'09h45',end:'11h15',subject:'Sport',detail:''},
+ {day:1,start:'11h15',end:'12h30',subject:'Français',detail:'Lecture'},
+ {day:1,start:'13h30',end:'14h45',subject:'Anglais',detail:'LV2'},
+ {day:1,start:'15h00',end:'16h00',subject:'Arabe',detail:'LV1'},
+ {day:1,start:'16h00',end:'16h30',subject:'Liturgie',detail:'Option'},
+ {day:2,start:'08h15',end:'09h30',subject:'Maths',detail:'Nombres et Calculs'},
+ {day:2,start:'09h45',end:'11h15',subject:'Français',detail:'Lecture/Écriture · Grammaire'},
+ {day:2,start:'11h15',end:'12h30',subject:'Français',detail:'Poésie / Orthographe'},
+ {day:2,start:'13h30',end:'14h45',subject:'Chinois',detail:'LV3'},
+ {day:2,start:'15h00',end:'16h00',subject:'Arabe',detail:'LV1'},
+ {day:2,start:'16h00',end:'16h30',subject:'Liturgie',detail:'Option'},
+ {day:3,start:'08h15',end:'09h30',subject:'Maths',detail:'Grandeurs et Mesures'},
+ {day:3,start:'09h45',end:'11h15',subject:'Sciences',detail:''},
+ {day:3,start:'11h15',end:'12h30',subject:'Ateliers',detail:'Informatique / PPP'},
+ {day:3,start:'12h30',end:'12h30',subject:'Sortie',detail:'Demi-journée'},
+ {day:4,start:'08h15',end:'09h30',subject:'Maths',detail:'O.G.D.'},
+ {day:4,start:'09h45',end:'11h15',subject:'Français',detail:'Lecture/Écriture · Orthographe'},
+ {day:4,start:'11h15',end:'12h30',subject:'Histoire / Géo',detail:''},
+ {day:4,start:'13h30',end:'14h45',subject:'Anglais',detail:'LV2'},
+ {day:4,start:'15h00',end:'16h00',subject:'Arabe',detail:'LV1'},
+ {day:4,start:'16h00',end:'16h30',subject:'Liturgie',detail:'Option'},
+ {day:5,start:'08h15',end:'09h30',subject:'Maths',detail:'Espace et Géométrie'},
+ {day:5,start:'09h45',end:'11h15',subject:'Français',detail:'Grammaire · Littérature'},
+ {day:5,start:'11h15',end:'12h30',subject:'EMC',detail:''},
+ {day:5,start:'13h30',end:'14h45',subject:'Ateliers',detail:'Arts'},
+ {day:5,start:'15h00',end:'16h00',subject:'Arabe',detail:'LV1'},
+ {day:5,start:'16h00',end:'16h30',subject:'Liturgie',detail:'Option'}
+];
+const SCHOOL_EVENTS_2627=[
+ {title:'Rentrée des ateliers',date:'2026-09-23'},
+ {title:'Vacances de la Toussaint',date:'2026-10-25',endDate:'2026-11-01'},
+ {title:'Armistice 1918',date:'2026-11-11'},
+ {title:'Vacances de Noël',date:'2026-12-20',endDate:'2027-01-03'},
+ {title:'Évaluations semestrielles S1',date:'2027-01-06',endDate:'2027-01-16'},
+ {title:'Remise des bulletins S1',date:'2027-01-27'},
+ {title:"Vacances d'Hiver",date:'2027-02-07',endDate:'2027-02-21'},
+ {title:'Kangourou des maths',date:'2027-03-18'},
+ {title:'Lundi de Pâques',date:'2027-03-29'},
+ {title:'Vacances de Printemps',date:'2027-04-04',endDate:'2027-04-18'},
+ {title:'Fête du Travail',date:'2027-05-01'},
+ {title:'Ascension',date:'2027-05-06'},
+ {title:'Victoire 1945',date:'2027-05-08'},
+ {title:'Lundi de Pentecôte',date:'2027-05-17'},
+ {title:'Évaluations semestrielles S2',date:'2027-05-19',endDate:'2027-05-29'},
+ {title:'Remise des bulletins S2',date:'2027-06-09'},
+ {title:"Fête de fin d'année",date:'2027-06-19'},
+ {title:"Vacances d'Été",date:'2027-06-20',endDate:'2027-08-31'}
+];
+function todaySchoolDay(){const d=new Date().getDay();return d>=1&&d<=5?d:0;}
+function renderSchool(m){
+  const tt=(state.timetables&&state.timetables[m.id])||[];
+  let html=`<div class="list-add"><button class="btn primary" id="addCours">+ Ajouter un cours</button>${tt.length?'':`<button class="btn soft" id="loadCP">Charger l'emploi du temps type (CP)</button>`}</div>`;
+  html+=`<div class="list-add" style="margin-top:8px"><button class="btn soft" id="loadSchoolCal">📅 Ajouter le calendrier scolaire 2026-2027</button></div>`;
+  if(!tt.length)return html+`<div class="empty"><div class="big">📚</div>Aucun emploi du temps. Charge le modèle CP, ou ajoute les cours à la main.</div>`;
+  const td=todaySchoolDay();
+  for(let d=1;d<=5;d++){
+    const slots=tt.filter(s=>s.day===d).sort((a,b)=>a.start.localeCompare(b.start));
+    if(!slots.length)continue;
+    html+=`<h2 class="section" style="${d===td?'color:var(--accent)':''}">${SCHOOL_DAYS[d]}${d===td?" · aujourd'hui":''}</h2><div class="card">`+slots.map(s=>`<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);align-items:flex-start"><span style="color:var(--muted);font-size:13px;min-width:92px">${esc(s.start)}–${esc(s.end)}</span><span style="flex:1"><b>${esc(s.subject)}</b>${s.detail?` <span style="color:var(--muted)">· ${esc(s.detail)}</span>`:''}${s.teacher?`<br><span style="color:var(--muted);font-size:12px">${esc(s.teacher)}</span>`:''}</span><button class="btn ghost sm" data-editcours="${s.id}">✎</button></div>`).join('')+`</div>`;
+  }
+  return html;
+}
+function slotModal(memberId,id){
+  const tt=(state.timetables&&state.timetables[memberId])||[];
+  const s=id?tt.find(x=>x.id===id):{day:todaySchoolDay()||1,start:'08h15',end:'09h30',subject:'',detail:'',teacher:''};
+  const dayOpts=[1,2,3,4,5].map(d=>`<option value="${d}" ${d===(s.day||1)?'selected':''}>${SCHOOL_DAYS[d]}</option>`).join('');
+  const body=`<div class="row2"><div class="field"><label>Jour</label><select id="cDay">${dayOpts}</select></div><div class="field"><label>Matière *</label><input id="cSubj" value="${esc(s.subject)}" placeholder="Maths, Français..."></div></div>
+    <div class="row2"><div class="field"><label>Début</label><input id="cStart" value="${esc(s.start)}" placeholder="08h15"></div><div class="field"><label>Fin</label><input id="cEnd" value="${esc(s.end)}" placeholder="09h30"></div></div>
+    <div class="field"><label>Détail</label><input id="cDetail" value="${esc(s.detail)}" placeholder="Grammaire, LV2..."></div>
+    <div class="field"><label>Enseignant (optionnel)</label><input id="cTeacher" value="${esc(s.teacher)}" placeholder="Mme ..."></div>`;
+  const ov=openModal(id?'Modifier le cours':'Nouveau cours',body,async(ov)=>{
+    const subject=val(ov,'cSubj');if(!subject){toast('Indique la matière');return false;}
+    const data={day:+ov.querySelector('#cDay').value,start:val(ov,'cStart')||'08h00',end:val(ov,'cEnd'),subject,detail:val(ov,'cDetail'),teacher:val(ov,'cTeacher')};
+    state.timetables=state.timetables||{};state.timetables[memberId]=state.timetables[memberId]||[];
+    if(id)Object.assign(s,data);else state.timetables[memberId].push({id:uid(),...data});
+    await saveState();render();toast('Enregistré');
+  });
+  if(id){const d=ov.querySelector('[data-cancel]');d.textContent='Supprimer';d.className='btn danger';d.onclick=()=>{if(confirm('Supprimer ce cours ?')){state.timetables[memberId]=state.timetables[memberId].filter(x=>x.id!==id);saveState();render();toast('Supprimé');ov.remove();}};}
+}
+function loadCPTimetable(memberId){state.timetables=state.timetables||{};state.timetables[memberId]=CP_TIMETABLE.map(s=>({id:uid(),...s}));saveState();render();toast('Emploi du temps CP chargé');}
+function loadSchoolCalendar(memberId){
+  state.events=state.events.filter(e=>e.src!=='school2627');
+  SCHOOL_EVENTS_2627.forEach(e=>state.events.push({id:uid(),category:'scolaire',title:e.title,memberId:memberId||null,date:e.date,endDate:e.endDate||'',doctor:'',notes:'',src:'school2627'}));
+  saveState();render();toast('Calendrier scolaire ajouté');
+}
 function renderRDV(m){
   const list=state.events.filter(e=>e.category==='rdv'&&e.memberId===m.id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const now=new Date(new Date().toDateString());const up=list.filter(e=>parseD(e.date)>=now),past=list.filter(e=>parseD(e.date)<now);
@@ -581,6 +678,7 @@ function bind(){
   const q=s=>document.querySelector(s),qa=s=>document.querySelectorAll(s);
   qa('[data-member]').forEach(el=>el.onclick=()=>{view={name:'member',id:el.dataset.member,tab:'sante'};setNav();render();});
   qa('[data-go]').forEach(el=>el.onclick=()=>{const g=el.dataset.go;if(g==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:g};setNav();render();});
+  const hb=q('#homeBackup');if(hb)hb.onclick=()=>saveToFile();
   const add=q('#addMember');if(add)add.onclick=()=>memberModal();
   const back=q('#back');if(back)back.onclick=()=>{view={name:'home'};setNav();render();};
   qa('.tabs button').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render();});
@@ -603,12 +701,17 @@ function bind(){
   const svi=q('#scanVision');if(svi)svi.onclick=()=>scanVision(view.id);
   qa('[data-editvision]').forEach(b=>b.onclick=()=>visionModal(view.id,b.dataset.editvision));
   qa('[data-delvision]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette mesure de vue ?')){state.vision=state.vision.filter(x=>x.id!==b.dataset.delvision);saveState();render();}});
+  // école
+  const ac=q('#addCours');if(ac)ac.onclick=()=>slotModal(view.id);
+  qa('[data-editcours]').forEach(b=>b.onclick=()=>slotModal(view.id,b.dataset.editcours));
+  const lcp=q('#loadCP');if(lcp)lcp.onclick=()=>loadCPTimetable(view.id);
+  const lsc=q('#loadSchoolCal');if(lsc)lsc.onclick=()=>{if(confirm('Ajouter tous les événements scolaires 2026-2027 au calendrier ?'))loadSchoolCalendar(view.id);};
   // rdv/events
   const ar=q('#addRdv');if(ar)ar.onclick=()=>eventModal(null,{category:'rdv',memberId:view.id});
   const ae=q('#addEvent');if(ae)ae.onclick=()=>eventModal();
   qa('[data-editevent]').forEach(b=>b.onclick=()=>eventModal(b.dataset.editevent));
   qa('[data-editmember]').forEach(b=>b.onclick=()=>memberModal(b.dataset.editmember));
-  qa('[data-delmember]').forEach(b=>b.onclick=()=>{const id=b.dataset.delmember;if(confirm('Supprimer ce membre et toutes ses données ?')){state.members=state.members.filter(m=>m.id!==id);state.health=state.health.filter(h=>h.memberId!==id);state.events=state.events.filter(e=>e.memberId!==id);state.vaccines=state.vaccines.filter(v=>v.memberId!==id);state.measurements=state.measurements.filter(x=>x.memberId!==id);state.vision=state.vision.filter(x=>x.memberId!==id);(state.tasks||[]).forEach(t=>{if(t.assignee===id)t.assignee='';});saveState();view={name:'home'};setNav();render();toast('Membre supprimé');}});
+  qa('[data-delmember]').forEach(b=>b.onclick=()=>{const id=b.dataset.delmember;if(confirm('Supprimer ce membre et toutes ses données ?')){state.members=state.members.filter(m=>m.id!==id);state.health=state.health.filter(h=>h.memberId!==id);state.events=state.events.filter(e=>e.memberId!==id);state.vaccines=state.vaccines.filter(v=>v.memberId!==id);state.measurements=state.measurements.filter(x=>x.memberId!==id);state.vision=state.vision.filter(x=>x.memberId!==id);(state.tasks||[]).forEach(t=>{if(t.assignee===id)t.assignee='';});if(state.timetables)delete state.timetables[id];saveState();view={name:'home'};setNav();render();toast('Membre supprimé');}});
   // tâches
   const at=q('#addTask');if(at)at.onclick=()=>taskModal();
   qa('[data-toggletask]').forEach(b=>b.onclick=()=>{const t=state.tasks.find(x=>x.id===b.dataset.toggletask);if(t){t.done=!t.done;t.doneAt=t.done?new Date().toISOString():'';saveState();render();}});
@@ -802,14 +905,16 @@ function scanReview(p,photo){
 /* ---------------- Réglages ---------------- */
 function settingsModal(){
   const s=state.settings||(state.settings={});const ec=s.emergencyContact||{};const notifOn=!!s.notif;
-  const fileInfo=hasSaveFSA?'Chrome : enregistrement direct dans le fichier choisi':'Safari/iPhone : le fichier est téléchargé, à ranger dans iCloud/OneDrive';
+  const lb=s.lastBackup;const bdays=lb?Math.floor((Date.now()-new Date(lb).getTime())/86400000):null;
+  const lbTxt=lb?`Dernière sauvegarde : il y a ${bdays} j (${fmtDate(lb.slice(0,10))}).`:'Aucune sauvegarde fichier pour l\'instant.';
+  const fileInfo=(hasSaveFSA?'Chrome : enregistrement direct dans le fichier choisi. ':'Safari/iPhone : fichier téléchargé, à ranger dans iCloud. ')+lbTxt;
   const body=`
     <div class="setrow"><div><div class="st">💾 Fichier de données (chiffré)</div><div class="sd">${fileInfo}</div></div><div style="white-space:nowrap"><button class="btn primary sm" id="sSave">Enregistrer</button> <button class="btn ghost sm" id="sOpen">Ouvrir</button></div></div>
     <div class="setrow"><div><div class="st">🔑 Mot de passe</div><div class="sd">Change le mot de passe de chiffrement</div></div><div><button class="btn ghost sm" id="sPw">Changer</button></div></div>
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v15</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v17</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -827,7 +932,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v15</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v17</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
@@ -851,6 +956,7 @@ document.getElementById('btnOpen').onclick=()=>openFromFile();
 /* ---------------- Démarrage ---------------- */
 (async()=>{
   if(!(window.crypto&&crypto.subtle)){document.getElementById('app').innerHTML='<div class="empty"><div class="big">⚠️</div>Ce navigateur ne permet pas le chiffrement en local. Ouvre le fichier dans Safari ou un Chrome récent.</div>';return;}
+  requestPersistence();
   const stored=await idbGet();
   if(!stored){
     showGate({title:'Protège tes données',sub:'Nouveau sur cet appareil ? Choisis un mot de passe pour démarrer. Tu as déjà un fichier (iCloud/OneDrive) ? Touche « J\'ai déjà un fichier ».',create:true,secondaryLabel:'📂 J\'ai déjà un fichier',onSecondary:openFromFile,onSubmit:async(pw)=>{masterPw=pw;state=JSON.parse(JSON.stringify(EMPTY));await saveState();render();return null;}});
