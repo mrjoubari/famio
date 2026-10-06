@@ -70,6 +70,8 @@
 
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
   .stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:16px 18px}
+  .stat[data-go]{cursor:pointer;transition:.15s}
+  .stat[data-go]:hover{border-color:var(--accent)}
   .stat .num{font-size:30px;font-weight:800;line-height:1}
   .stat .lbl{color:var(--muted);font-size:13px;margin-top:6px;font-weight:600}
   .stat.accent .num{color:var(--accent)} .stat.amber .num{color:var(--amber)} .stat.green .num{color:var(--green)} .stat.violet .num{color:var(--violet)}
@@ -216,7 +218,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v13</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v15</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -343,14 +345,35 @@ function render(){const app=document.getElementById('app');
 }
 
 /* ---------------- Accueil ---------------- */
+function upcomingItems(){
+  const today=todayStr();const out=[];
+  const label=ds=>{const dd=daysBetween(ds,today);return dd<0?'en retard':dd===0?"aujourd'hui":dd===1?'demain':fmtDate(ds);};
+  state.events.forEach(e=>{if(!e.date)return;const dd=daysBetween(e.date,today);if(dd>=0&&dd<=7){const c=CATS[e.category]||CATS.autre;out.push({sort:e.date,icon:c.emoji,text:`${e.title}${memberName(e.memberId)?' · '+memberName(e.memberId):''}`,lbl:label(e.date),urgent:dd<=1});}});
+  state.members.forEach(m=>{const b=parseD(m.dob);if(!b)return;const n=new Date();let nb=new Date(n.getFullYear(),b.getMonth(),b.getDate());if(nb<new Date(n.toDateString()))nb=new Date(n.getFullYear()+1,b.getMonth(),b.getDate());const ds=ymd(nb);const dd=daysBetween(ds,today);if(dd>=0&&dd<=7)out.push({sort:ds,icon:'🎂',text:`Anniversaire de ${m.name.split(' ')[0]}`,lbl:label(ds),urgent:dd<=1});});
+  (state.vaccines||[]).forEach(v=>{if(!v.nextDate)return;const dd=daysBetween(v.nextDate,today);if(dd<=14)out.push({sort:v.nextDate,icon:'💉',text:`Rappel vaccin ${v.name} · ${memberName(v.memberId)}`,lbl:label(v.nextDate),urgent:dd<=0});});
+  out.sort((a,b)=>(a.sort||'').localeCompare(b.sort||''));
+  return out;
+}
 function renderHome(){
-  const rem=computeReminders();
-  let banner='';
-  if(rem.length)banner=`<div class="reminders"><h4>🔔 À ne pas oublier</h4>${rem.slice(0,5).map(r=>`<div class="rem ${r.urgent?'urgent':''}"><span>${r.icon}</span><span>${esc(r.text)}</span></div>`).join('')}</div>`;
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const today=todayStr();
+  const activeTreat=state.health.filter(isTreatmentActive).length;
+  const rdv7=state.events.filter(e=>e.category==='rdv'&&e.date&&daysBetween(e.date,today)>=0&&daysBetween(e.date,today)<=7).length;
+  const openTasks=(state.tasks||[]).filter(t=>!t.done).length;
+  const greet=`<div style="margin:2px 0 14px"><div style="font-size:22px;font-weight:800">Bonjour 👋</div><div style="color:var(--muted);text-transform:capitalize">${esc(dateStr)}</div></div>`;
+  const stats=`<div class="stats"><div class="stat accent"><div class="num">${state.members.length}</div><div class="lbl">Membres</div></div><div class="stat amber" data-go="health"><div class="num">${activeTreat}</div><div class="lbl">Soucis en cours</div></div><div class="stat green" data-go="calendar"><div class="num">${rdv7}</div><div class="lbl">RDV (7 j)</div></div><div class="stat violet" data-go="tasks"><div class="num">${openTasks}</div><div class="lbl">Tâches à faire</div></div></div>`;
+  const up=upcomingItems();
+  const upHtml=up.length?`<div class="card">${up.slice(0,8).map(u=>`<div style="display:flex;gap:10px;padding:8px 0;align-items:flex-start;border-bottom:1px solid var(--border);${u.urgent?'font-weight:700':''}"><span>${u.icon}</span><span style="flex:1">${esc(u.text)}</span><span style="color:var(--muted);font-size:13px;white-space:nowrap">${esc(u.lbl)}</span></div>`).join('')}</div>`:`<div class="empty" style="padding:24px"><div class="big">🗓️</div>Rien de prévu dans les 7 prochains jours</div>`;
   let cards=state.members.map(m=>{const active=state.health.filter(h=>h.memberId===m.id&&isTreatmentActive(h)).length;const chip=active>0?`<span class="chip care">⚠ ${active} en cours</span>`:`<span class="chip ok">✓ En forme</span>`;return `<div class="member-card" data-member="${m.id}">${avatarHTML(m)}<div class="name">${esc(m.name)}</div><div class="age">${ageText(m.dob)}</div>${chip}</div>`;}).join('');
   cards+=`<button class="add-tile" id="addMember"><span class="plus">+</span>Ajouter un membre</button>`;
-  const head=state.members.length?'':`<div class="empty"><div class="big">👋</div>Bienvenue ! Ajoute le premier membre de la famille pour commencer.</div>`;
-  return `${banner}<h2 class="section">Membres de la famille</h2>${head}<div class="grid">${cards}</div>`;
+  if(!state.members.length)return `${greet}<div class="empty"><div class="big">👋</div>Bienvenue ! Ajoute le premier membre de la famille pour commencer.</div><div class="grid">${cards}</div>`;
+  const todo=(state.tasks||[]).filter(t=>!t.done).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  let tasksHtml='';
+  if(todo.length){
+    tasksHtml=`<h2 class="section">✓ Tâches à faire</h2>`+todo.slice(0,5).map(t=>{const badge=t.due?`<span class="chip ${daysBetween(t.due,today)<0?'care':'ok'}" style="margin-left:4px">${daysBetween(t.due,today)<0?'En retard':daysBetween(t.due,today)===0?'Auj.':daysBetween(t.due,today)===1?'Demain':fmtDate(t.due)}</span>`:'';return `<div class="task-item"><button class="task-check" data-toggletask="${t.id}"></button><div class="task-body" data-go="tasks"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${t.assignee?memberChip(t.assignee):'<span class="task-who">👪 Tout le monde</span>'}${badge}</div></div></div>`;}).join('')+(todo.length>5?`<button class="btn ghost sm" data-go="tasks" style="margin-top:2px">Voir les ${todo.length} tâches →</button>`:'');
+  }
+  return `${greet}${stats}<h2 class="section">À venir (7 jours)</h2>${upHtml}${tasksHtml}<h2 class="section">Membres de la famille</h2><div class="grid">${cards}</div>`;
 }
 
 /* ---------------- Santé globale ---------------- */
@@ -557,6 +580,7 @@ function taskModal(id){
 function bind(){
   const q=s=>document.querySelector(s),qa=s=>document.querySelectorAll(s);
   qa('[data-member]').forEach(el=>el.onclick=()=>{view={name:'member',id:el.dataset.member,tab:'sante'};setNav();render();});
+  qa('[data-go]').forEach(el=>el.onclick=()=>{const g=el.dataset.go;if(g==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:g};setNav();render();});
   const add=q('#addMember');if(add)add.onclick=()=>memberModal();
   const back=q('#back');if(back)back.onclick=()=>{view={name:'home'};setNav();render();};
   qa('.tabs button').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render();});
@@ -785,7 +809,7 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v13</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v15</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -803,7 +827,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v13</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v15</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
