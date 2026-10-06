@@ -218,7 +218,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v17</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v19</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -285,7 +285,6 @@ function computeReminders(){
   const out=[];const today=todayStr();
   state.events.filter(e=>e.category==='rdv'&&e.date).forEach(e=>{const dd=daysBetween(e.date,today);if(dd>=0&&dd<=7)out.push({icon:'🩺',urgent:dd<=1,text:`${e.title}${memberName(e.memberId)?' ('+memberName(e.memberId)+')':''} — ${dd===0?"aujourd'hui":dd===1?'demain':'le '+fmtDate(e.date)}`});});
   (state.vaccines||[]).filter(v=>v.nextDate).forEach(v=>{const dd=daysBetween(v.nextDate,today);if(dd<=30)out.push({icon:'💉',urgent:dd<=0,text:`Rappel vaccin ${v.name} (${memberName(v.memberId)}) — ${dd<0?'en retard ('+fmtDate(v.nextDate)+')':dd===0?"aujourd'hui":'le '+fmtDate(v.nextDate)}`});});
-  (state.tasks||[]).filter(t=>!t.done&&t.due).forEach(t=>{const dd=daysBetween(t.due,today);if(dd<=7)out.push({icon:'✓',urgent:dd<=1,text:`${t.title}${t.assignee&&memberName(t.assignee)?' ('+memberName(t.assignee)+')':''} — ${dd<0?'en retard':dd===0?"aujourd'hui":dd===1?'demain':'le '+fmtDate(t.due)}`});});
   out.sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0));
   return out;
 }
@@ -412,7 +411,10 @@ function renderMember(id){
   const m=state.members.find(x=>x.id===id);if(!m){view={name:'home'};return renderHome();}
   const tab=view.tab||'sante';
   const hero=`<div class="profile-hero">${avatarHTML(m)}<div style="flex:1;min-width:180px"><div class="h-name">${esc(m.name)}</div><div class="h-sub">${ageText(m.dob)} · né(e) le ${fmtDate(m.dob)}</div><div class="badges">${m.bloodType?`<div class="badge"><b>Groupe sanguin</b>${esc(m.bloodType)}</div>`:''}${m.allergies?`<div class="badge warn"><b>Allergies</b>${esc(m.allergies)}</div>`:''}</div></div></div>`;
-  const T=[['sante','🏥 Santé'],['ecole','📚 École'],['vaccins','💉 Vaccins'],['vue','👓 Vue'],['croissance','📈 Croissance'],['rdv','🩺 RDV'],['infos','ℹ️ Infos']];
+  const hasTT=state.timetables&&state.timetables[m.id]&&state.timetables[m.id].length;
+  const T=[['sante','🏥 Santé']];
+  if(m.scolarise||hasTT)T.push(['ecole','📚 École']);
+  T.push(['vaccins','💉 Vaccins'],['vue','👓 Vue'],['croissance','📈 Croissance'],['rdv','🩺 RDV'],['infos','ℹ️ Infos']);
   const tabs=`<div class="tabs">${T.map(([k,l])=>`<button data-tab="${k}" class="${tab===k?'active':''}">${l}</button>`).join('')}</div>`;
   let body= tab==='sante'?renderSante(m):tab==='ecole'?renderSchool(m):tab==='vaccins'?renderVaccines(m):tab==='vue'?renderVision(m):tab==='croissance'?renderGrowth(m):tab==='rdv'?renderRDV(m):renderInfos(m);
   return `<button class="back" id="back">← Retour</button>${hero}${tabs}<div style="margin-top:16px">${body}</div>`;
@@ -578,7 +580,8 @@ function todaySchoolDay(){const d=new Date().getDay();return d>=1&&d<=5?d:0;}
 function renderSchool(m){
   const tt=(state.timetables&&state.timetables[m.id])||[];
   let html=`<div class="list-add"><button class="btn primary" id="addCours">+ Ajouter un cours</button>${tt.length?'':`<button class="btn soft" id="loadCP">Charger l'emploi du temps type (CP)</button>`}</div>`;
-  html+=`<div class="list-add" style="margin-top:8px"><button class="btn soft" id="loadSchoolCal">📅 Ajouter le calendrier scolaire 2026-2027</button></div>`;
+  const hasSchoolCal=state.events.some(e=>e.src==='school2627');
+  html+=`<div class="list-add" style="margin-top:8px"><button class="btn soft" id="loadSchoolCal">📅 ${hasSchoolCal?'Recharger':'Ajouter'} le calendrier scolaire 2026-2027</button>${hasSchoolCal?`<button class="btn danger" id="rmSchoolCal">Retirer le calendrier scolaire</button>`:''}${tt.length?`<button class="btn danger" id="clearTT">🗑️ Vider l'emploi du temps</button>`:''}</div>`;
   if(!tt.length)return html+`<div class="empty"><div class="big">📚</div>Aucun emploi du temps. Charge le modèle CP, ou ajoute les cours à la main.</div>`;
   const td=todaySchoolDay();
   for(let d=1;d<=5;d++){
@@ -706,6 +709,8 @@ function bind(){
   qa('[data-editcours]').forEach(b=>b.onclick=()=>slotModal(view.id,b.dataset.editcours));
   const lcp=q('#loadCP');if(lcp)lcp.onclick=()=>loadCPTimetable(view.id);
   const lsc=q('#loadSchoolCal');if(lsc)lsc.onclick=()=>{if(confirm('Ajouter tous les événements scolaires 2026-2027 au calendrier ?'))loadSchoolCalendar(view.id);};
+  const ctt=q('#clearTT');if(ctt)ctt.onclick=()=>{if(confirm('Vider tout l\'emploi du temps de ce membre ?')){if(state.timetables)delete state.timetables[view.id];saveState();render();toast('Emploi du temps vidé');}};
+  const rsc=q('#rmSchoolCal');if(rsc)rsc.onclick=()=>{if(confirm('Retirer tous les événements du calendrier scolaire ?')){state.events=state.events.filter(e=>e.src!=='school2627');saveState();render();toast('Calendrier scolaire retiré');}};
   // rdv/events
   const ar=q('#addRdv');if(ar)ar.onclick=()=>eventModal(null,{category:'rdv',memberId:view.id});
   const ae=q('#addEvent');if(ae)ae.onclick=()=>eventModal();
@@ -744,8 +749,9 @@ function memberModal(id){
     <div class="row2"><div class="field"><label>Date de naissance *</label><input type="date" id="mDob" value="${esc(m.dob)}"></div><div class="field"><label>Groupe sanguin</label><select id="mBlood">${bt.map(x=>`<option ${x===(m.bloodType||'')?'selected':''}>${x||'—'}</option>`).join('')}</select></div></div>
     <div class="field"><label>Allergies</label><input id="mAllergies" value="${esc(m.allergies)}" placeholder="Ex : Pénicilline, arachides"></div>
     <div class="field"><label>Médecin traitant</label><input id="mDoctor" value="${esc(m.doctor)}" placeholder="Ex : Dr Dupont"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600"><input type="checkbox" id="mSchool" ${m.scolarise?'checked':''} style="width:auto;flex:none"> 📚 À l'école (afficher l'emploi du temps)</label></div>
     <div class="field"><label>Notes</label><textarea id="mNotes" placeholder="Infos utiles...">${esc(m.notes)}</textarea></div>`;
-  const ov=openModal(id?'Modifier le membre':'Nouveau membre',body,async(ov)=>{const name=val(ov,'mName'),dob=ov.querySelector('#mDob').value;if(!name||!dob){toast('Nom et date de naissance obligatoires');return false;}const data={name,dob,bloodType:(ov.querySelector('#mBlood').value||'').replace('—',''),allergies:val(ov,'mAllergies'),doctor:val(ov,'mDoctor'),notes:val(ov,'mNotes'),photo};if(id)Object.assign(m,data);else state.members.push({id:uid(),...data});await saveState();render();toast(id?'Membre mis à jour':'Membre ajouté');});
+  const ov=openModal(id?'Modifier le membre':'Nouveau membre',body,async(ov)=>{const name=val(ov,'mName'),dob=ov.querySelector('#mDob').value;if(!name||!dob){toast('Nom et date de naissance obligatoires');return false;}const data={name,dob,bloodType:(ov.querySelector('#mBlood').value||'').replace('—',''),allergies:val(ov,'mAllergies'),doctor:val(ov,'mDoctor'),scolarise:ov.querySelector('#mSchool').checked,notes:val(ov,'mNotes'),photo};if(id)Object.assign(m,data);else state.members.push({id:uid(),...data});await saveState();render();toast(id?'Membre mis à jour':'Membre ajouté');});
   ov.querySelector('#pickPhoto').onclick=()=>pickFile('image/*',async f=>{photo=await resizeImage(f,256,0.85);ov.querySelector('#photoPrev').innerHTML=avatarHTML({name:val(ov,'mName'),photo});});
   ov.querySelector('#rmPhoto').onclick=()=>{photo='';ov.querySelector('#photoPrev').innerHTML=avatarHTML({name:val(ov,'mName'),photo});};
 }
@@ -914,11 +920,13 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v17</div>`;
+    <div class="setrow"><div><div class="st" style="color:var(--red)">🗑️ Réinitialiser</div><div class="sd">Effacer toutes les données (membres, santé, école, tâches…)</div></div><div><button class="btn danger sm" id="resetAll">Effacer tout</button></div></div>
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v19</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
   ov.querySelector('#sPw').onclick=()=>showGate({title:'Nouveau mot de passe',sub:'Choisis un nouveau mot de passe. Note-le bien.',create:true,allowCancel:true,onSubmit:async(pw)=>{masterPw=pw;await saveState();toast('Mot de passe changé');return null;}});
+  ov.querySelector('#resetAll').onclick=async()=>{if(confirm('Effacer TOUTES les données (membres, santé, école, tâches…) ? Action irréversible.')&&confirm('Dernière confirmation : tout effacer ?')){const keep=state.settings;state=Object.assign(JSON.parse(JSON.stringify(EMPTY)),{settings:keep});await saveState();ov.remove();view={name:'home'};setNav();render();toast('Toutes les données ont été effacées');}};
   const tn=ov.querySelector('#toggleNotif');tn.onclick=async()=>{if(notifOn){s.notif=false;await saveState();ov.remove();settingsModal();return;}if(!('Notification'in window)){toast('Notifications non supportées ici');return;}const p=await Notification.requestPermission();if(p==='granted'){s.notif=true;await saveState();ov.remove();settingsModal();toast('Notifications activées');}else toast('Permission refusée');};
 }
 
@@ -932,7 +940,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v17</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v19</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
