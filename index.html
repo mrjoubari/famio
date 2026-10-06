@@ -154,6 +154,15 @@
   .bar span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--text)}
   .bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
 
+  .task-item{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:8px}
+  .task-item.done .task-title{text-decoration:line-through;color:var(--muted)}
+  .task-check{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--surface);color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .task-check.on{background:var(--green);border-color:var(--green)}
+  .task-body{flex:1;cursor:pointer;min-width:0}
+  .task-title{font-weight:600}
+  .task-meta{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
+  .task-who{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);background:var(--surface-2);padding:2px 9px;border-radius:999px}
+  .task-who img{width:18px;height:18px;border-radius:50%;object-fit:cover}
   .overlay{position:fixed;inset:0;background:rgba(10,15,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50}
   @media(min-width:640px){.overlay{align-items:center;padding:20px}}
   .modal{background:var(--surface);width:100%;max-width:540px;border-radius:20px 20px 0 0;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
@@ -207,7 +216,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v12</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v13</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -217,6 +226,7 @@
   <button data-view="home" class="active">👥 Famille</button>
   <button data-view="health">🏥 Santé</button>
   <button data-view="calendar">📅 Calendrier</button>
+  <button data-view="tasks">✓ Tâches</button>
 </div>
 <main id="app"></main>
 <div class="toast" id="toast"></div>
@@ -224,7 +234,7 @@
 <script>
 /* ---------------- Stockage local (IndexedDB) ---------------- */
 const DB_NAME='familleDB', STORE='app', KEY='state';
-const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],settings:{}};
+const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],tasks:[],settings:{}};
 let state=JSON.parse(JSON.stringify(EMPTY));
 
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -273,6 +283,7 @@ function computeReminders(){
   const out=[];const today=todayStr();
   state.events.filter(e=>e.category==='rdv'&&e.date).forEach(e=>{const dd=daysBetween(e.date,today);if(dd>=0&&dd<=7)out.push({icon:'🩺',urgent:dd<=1,text:`${e.title}${memberName(e.memberId)?' ('+memberName(e.memberId)+')':''} — ${dd===0?"aujourd'hui":dd===1?'demain':'le '+fmtDate(e.date)}`});});
   (state.vaccines||[]).filter(v=>v.nextDate).forEach(v=>{const dd=daysBetween(v.nextDate,today);if(dd<=30)out.push({icon:'💉',urgent:dd<=0,text:`Rappel vaccin ${v.name} (${memberName(v.memberId)}) — ${dd<0?'en retard ('+fmtDate(v.nextDate)+')':dd===0?"aujourd'hui":'le '+fmtDate(v.nextDate)}`});});
+  (state.tasks||[]).filter(t=>!t.done&&t.due).forEach(t=>{const dd=daysBetween(t.due,today);if(dd<=7)out.push({icon:'✓',urgent:dd<=1,text:`${t.title}${t.assignee&&memberName(t.assignee)?' ('+memberName(t.assignee)+')':''} — ${dd<0?'en retard':dd===0?"aujourd'hui":dd===1?'demain':'le '+fmtDate(t.due)}`});});
   out.sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0));
   return out;
 }
@@ -320,13 +331,14 @@ async function openFromFile(){
 /* ---------------- Navigation ---------------- */
 let view={name:'home'};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.dataset.view==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:b.dataset.view};setNav();render();});
-function setNav(){const map={home:'home',member:'home',health:'health',calendar:'calendar'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
+function setNav(){const map={home:'home',member:'home',health:'health',calendar:'calendar',tasks:'tasks'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
 
 function render(){const app=document.getElementById('app');
   if(view.name==='home')app.innerHTML=renderHome();
   else if(view.name==='member')app.innerHTML=renderMember(view.id);
   else if(view.name==='health')app.innerHTML=renderHealth();
   else if(view.name==='calendar')app.innerHTML=renderCalendar();
+  else if(view.name==='tasks')app.innerHTML=renderTasks();
   bind();
 }
 
@@ -514,6 +526,33 @@ function renderAgendaList(){
   if(past.length)html+=`<h2 class="section">Passé</h2>`+past.map(item).join('');return html;
 }
 
+/* ---------------- Tâches partagées ---------------- */
+function memberChip(id){const m=state.members.find(x=>x.id===id);if(!m)return'';return `<span class="task-who">${m.photo?`<img src="${m.photo}">`:'👤'} ${esc(m.name.split(' ')[0])}</span>`;}
+function renderTasks(){
+  const tasks=state.tasks||[];const today=todayStr();
+  const todo=tasks.filter(t=>!t.done).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const done=tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
+  const row=t=>{let badge='';if(t.due){const dd=daysBetween(t.due,today);badge=`<span class="chip ${dd<0?'care':'ok'}" style="margin-left:4px">${dd<0?'En retard':dd===0?"Aujourd'hui":dd===1?'Demain':fmtDate(t.due)}</span>`;}
+    return `<div class="task-item ${t.done?'done':''}"><button class="task-check ${t.done?'on':''}" data-toggletask="${t.id}">${t.done?'✓':''}</button><div class="task-body" data-edittask="${t.id}"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${t.assignee?memberChip(t.assignee):'<span class="task-who">👪 Tout le monde</span>'}${badge}</div></div><button class="btn danger sm" data-deltask="${t.id}">✕</button></div>`;};
+  let html=`<div class="list-add"><button class="btn primary" id="addTask">+ Ajouter une tâche</button></div>`;
+  html+=`<h2 class="section">À faire</h2>`+(todo.length?todo.map(row).join(''):`<div class="empty"><div class="big">✓</div>Rien à faire pour l'instant 🎉</div>`);
+  if(done.length)html+=`<h2 class="section">Terminées</h2>`+done.map(row).join('');
+  return html;
+}
+function taskModal(id){
+  const t=id?state.tasks.find(x=>x.id===id):{};
+  const memberOpts=`<option value="">— Tout le monde —</option>`+state.members.map(m=>`<option value="${m.id}" ${m.id===t.assignee?'selected':''}>${esc(m.name)}</option>`).join('');
+  const body=`<div class="field"><label>Tâche *</label><input id="tTitle" value="${esc(t.title)}" placeholder="Ex : Prendre RDV dentiste, acheter le pain..."></div>
+    <div class="row2"><div class="field"><label>Pour qui</label><select id="tWho">${memberOpts}</select></div><div class="field"><label>Pour quand</label><input type="date" id="tDue" value="${esc(t.due)}"></div></div>
+    <div class="field"><label>Notes</label><input id="tNotes" value="${esc(t.notes)}" placeholder="Détails..."></div>`;
+  openModal(id?'Modifier la tâche':'Nouvelle tâche',body,async(ov)=>{
+    const title=val(ov,'tTitle');if(!title){toast('Indique la tâche');return false;}
+    const data={title,assignee:ov.querySelector('#tWho').value,due:ov.querySelector('#tDue').value,notes:val(ov,'tNotes')};
+    if(id)Object.assign(t,data);else state.tasks.push({id:uid(),done:false,created:new Date().toISOString(),...data});
+    await saveState();render();toast('Enregistré');
+  });
+}
+
 /* ---------------- Liaisons ---------------- */
 function bind(){
   const q=s=>document.querySelector(s),qa=s=>document.querySelectorAll(s);
@@ -545,7 +584,12 @@ function bind(){
   const ae=q('#addEvent');if(ae)ae.onclick=()=>eventModal();
   qa('[data-editevent]').forEach(b=>b.onclick=()=>eventModal(b.dataset.editevent));
   qa('[data-editmember]').forEach(b=>b.onclick=()=>memberModal(b.dataset.editmember));
-  qa('[data-delmember]').forEach(b=>b.onclick=()=>{const id=b.dataset.delmember;if(confirm('Supprimer ce membre et toutes ses données ?')){state.members=state.members.filter(m=>m.id!==id);state.health=state.health.filter(h=>h.memberId!==id);state.events=state.events.filter(e=>e.memberId!==id);state.vaccines=state.vaccines.filter(v=>v.memberId!==id);state.measurements=state.measurements.filter(x=>x.memberId!==id);state.vision=state.vision.filter(x=>x.memberId!==id);saveState();view={name:'home'};setNav();render();toast('Membre supprimé');}});
+  qa('[data-delmember]').forEach(b=>b.onclick=()=>{const id=b.dataset.delmember;if(confirm('Supprimer ce membre et toutes ses données ?')){state.members=state.members.filter(m=>m.id!==id);state.health=state.health.filter(h=>h.memberId!==id);state.events=state.events.filter(e=>e.memberId!==id);state.vaccines=state.vaccines.filter(v=>v.memberId!==id);state.measurements=state.measurements.filter(x=>x.memberId!==id);state.vision=state.vision.filter(x=>x.memberId!==id);(state.tasks||[]).forEach(t=>{if(t.assignee===id)t.assignee='';});saveState();view={name:'home'};setNav();render();toast('Membre supprimé');}});
+  // tâches
+  const at=q('#addTask');if(at)at.onclick=()=>taskModal();
+  qa('[data-toggletask]').forEach(b=>b.onclick=()=>{const t=state.tasks.find(x=>x.id===b.dataset.toggletask);if(t){t.done=!t.done;t.doneAt=t.done?new Date().toISOString():'';saveState();render();}});
+  qa('[data-edittask]').forEach(b=>b.onclick=()=>taskModal(b.dataset.edittask));
+  qa('[data-deltask]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette tâche ?')){state.tasks=state.tasks.filter(x=>x.id!==b.dataset.deltask);saveState();render();}});
   const pm=q('#prevM');if(pm)pm.onclick=()=>{let m=view.m-1,y=view.y;if(m<0){m=11;y--;}view.m=m;view.y=y;render();};
   const nm=q('#nextM');if(nm)nm.onclick=()=>{let m=view.m+1,y=view.y;if(m>11){m=0;y++;}view.m=m;view.y=y;render();};
   const tb=q('#todayBtn');if(tb)tb.onclick=()=>{const n=new Date();view.y=n.getFullYear();view.m=n.getMonth();render();};
@@ -741,7 +785,7 @@ function settingsModal(){
     <div class="setrow"><div><div class="st">🔔 Notifications</div><div class="sd">Rappels quand l'appli est ouverte</div></div><div><button class="btn ${notifOn?'ghost':'primary'} sm" id="toggleNotif">${notifOn?'Activées ✓':'Activer'}</button></div></div>
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v12</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v13</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -758,7 +802,8 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <div class="err" id="gErr"></div>
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
-    ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}`;
+    ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v13</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
