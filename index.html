@@ -136,18 +136,18 @@
   .cal-nav{border:1px solid var(--border);background:var(--surface);border-radius:10px;width:40px;height:40px;font-size:18px;color:var(--text)}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
   .cal-dow{text-align:center;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:4px 0}
-  .cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:66px;padding:6px;display:flex;flex-direction:column;cursor:pointer;transition:.12s;overflow:hidden}
+  .cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:90px;padding:6px;display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:.12s;overflow:hidden}
   .cal-cell:hover{border-color:var(--accent)}
   .cal-cell.other{opacity:.4}
   .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-weak) inset}
   .cal-cell.today .dnum{color:var(--accent)}
   .cal-cell .dnum{font-size:13px;font-weight:700;align-self:flex-end}
-  .cdots{display:flex;flex-wrap:wrap;gap:3px;margin-top:auto;padding-top:4px}
-  .cdot{width:7px;height:7px;border-radius:50%}
+  .cal-ev{font-size:11px;font-weight:600;color:#fff;border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+  .cal-more{font-size:10px;color:var(--muted);font-weight:700;padding-left:2px}
   .cal-filter{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
   .cchip{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:.12s}
   .cchip.on{background:var(--cc,var(--accent));border-color:var(--cc,var(--accent));color:#fff}
-  @media(max-width:620px){.cal-grid{gap:4px}.cal-cell{min-height:52px;padding:5px;border-radius:8px}.cal-cell .dnum{font-size:12px}.cdot{width:6px;height:6px}.cal-dow{font-size:10px}}
+  @media(max-width:620px){.cal-grid{gap:4px}.cal-cell{min-height:70px;padding:4px}.cal-cell .dnum{font-size:12px}.cal-ev{font-size:0;padding:3px;border-radius:3px}.cal-dow{font-size:10px}}
 
   .reftable{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
   .reftable th,.reftable td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);font-size:14px}
@@ -222,7 +222,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v20</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v21</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -344,7 +344,10 @@ let view={name:'home'};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.dataset.view==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:b.dataset.view};setNav();render();});
 function setNav(){const map={home:'home',member:'home',health:'health',calendar:'calendar',tasks:'tasks'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
 
+let _migrated=false;
+function migrateState(){let ch=false;(state.events||[]).forEach(e=>{if(e.src==='school2627'&&/vacances/i.test(e.title||'')&&e.category!=='vacances'){e.category='vacances';ch=true;}});return ch;}
 function render(){const app=document.getElementById('app');
+  if(!_migrated){_migrated=true;if(migrateState()&&masterPw)saveState();}
   if(view.name==='home')app.innerHTML=renderHome();
   else if(view.name==='member')app.innerHTML=renderMember(view.id);
   else if(view.name==='health')app.innerHTML=renderHealth();
@@ -659,10 +662,10 @@ function calFilterChips(){
 }
 function dayCell(d,other,todayS){
   const ds=ymd(d);let evs=eventsForDay(ds);if(view.filter)evs=evs.filter(e=>e._cat===view.filter);
-  const cats=[];evs.forEach(e=>{if(!cats.includes(e._cat))cats.push(e._cat);});
-  const dots=cats.slice(0,4).map(k=>`<span class="cdot" style="background:${catInfo(k).color}"></span>`).join('');
   const isToday=ds===todayS;
-  return `<div class="cal-cell ${other?'other':''} ${isToday?'today':''}" data-day="${ds}"><div class="dnum">${d.getDate()}</div><div class="cdots">${dots}</div></div>`;
+  const shown=evs.slice(0,3).map(e=>`<div class="cal-ev" style="background:${catInfo(e._cat).color}">${esc(e.title)}</div>`).join('');
+  const more=evs.length>3?`<div class="cal-more">+${evs.length-3}</div>`:'';
+  return `<div class="cal-cell ${other?'other':''} ${isToday?'today':''}" data-day="${ds}"><div class="dnum">${d.getDate()}</div>${shown}${more}</div>`;
 }
 function monthItems(y,m){
   const s=ymd(new Date(y,m,1)),e=ymd(new Date(y,m+1,0));const out=[];
@@ -959,7 +962,7 @@ function settingsModal(){
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
     <div class="setrow"><div><div class="st" style="color:var(--red)">🗑️ Réinitialiser</div><div class="sd">Effacer toutes les données (membres, santé, école, tâches…)</div></div><div><button class="btn danger sm" id="resetAll">Effacer tout</button></div></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v20</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v21</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -978,7 +981,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v20</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v21</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
