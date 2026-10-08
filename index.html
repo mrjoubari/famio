@@ -169,6 +169,13 @@
   .task-meta{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
   .task-who{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);background:var(--surface-2);padding:2px 9px;border-radius:999px}
   .task-who img{width:18px;height:18px;border-radius:50%;object-fit:cover}
+  .course-add{display:flex;gap:8px;margin-bottom:16px}
+  .course-add input{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);min-width:0}
+  .course-add input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+  .course-add .art{flex:1}
+  .course-add .qty{width:68px;text-align:center}
+  .qchip{display:inline-block;background:var(--accent-weak);color:var(--accent);font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:8px;white-space:nowrap}
+  .course-cat{color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:18px 0 8px}
   .overlay{position:fixed;inset:0;background:rgba(10,15,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50}
   @media(min-width:640px){.overlay{align-items:center;padding:20px}}
   .modal{background:var(--surface);width:100%;max-width:540px;border-radius:20px 20px 0 0;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
@@ -222,17 +229,19 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v21</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v22</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
   <button class="icon-btn" id="btnSaveFile" title="Enregistrer dans un fichier">💾</button>
 </div>
 <div class="nav">
-  <button data-view="home" class="active">👥 Famille</button>
-  <button data-view="health">🏥 Santé</button>
+  <button data-view="home" class="active">🏠 Accueil</button>
   <button data-view="calendar">📅 Calendrier</button>
   <button data-view="tasks">✓ Tâches</button>
+  <button data-view="courses">🛒 Courses</button>
+  <button data-view="health">🏥 Santé</button>
+  <button data-view="members">👥 Membres</button>
 </div>
 <main id="app"></main>
 <div class="toast" id="toast"></div>
@@ -240,7 +249,7 @@
 <script>
 /* ---------------- Stockage local (IndexedDB) ---------------- */
 const DB_NAME='familleDB', STORE='app', KEY='state';
-const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],tasks:[],timetables:{},settings:{}};
+const EMPTY={members:[],health:[],events:[],vaccines:[],measurements:[],vision:[],tasks:[],courses:[],timetables:{},settings:{}};
 let state=JSON.parse(JSON.stringify(EMPTY));
 
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -342,17 +351,19 @@ async function openFromFile(){
 /* ---------------- Navigation ---------------- */
 let view={name:'home'};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.dataset.view==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:b.dataset.view};setNav();render();});
-function setNav(){const map={home:'home',member:'home',health:'health',calendar:'calendar',tasks:'tasks'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
+function setNav(){const map={home:'home',member:'members',members:'members',health:'health',calendar:'calendar',tasks:'tasks',courses:'courses'};document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===map[view.name]));}
 
 let _migrated=false;
 function migrateState(){let ch=false;(state.events||[]).forEach(e=>{if(e.src==='school2627'&&/vacances/i.test(e.title||'')&&e.category!=='vacances'){e.category='vacances';ch=true;}});return ch;}
 function render(){const app=document.getElementById('app');
   if(!_migrated){_migrated=true;if(migrateState()&&masterPw)saveState();}
   if(view.name==='home')app.innerHTML=renderHome();
+  else if(view.name==='members')app.innerHTML=renderMembers();
   else if(view.name==='member')app.innerHTML=renderMember(view.id);
   else if(view.name==='health')app.innerHTML=renderHealth();
   else if(view.name==='calendar')app.innerHTML=renderCalendar();
   else if(view.name==='tasks')app.innerHTML=renderTasks();
+  else if(view.name==='courses')app.innerHTML=renderCourses();
   bind();
 }
 
@@ -370,27 +381,43 @@ function renderHome(){
   const now=new Date();
   const dateStr=now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   const today=todayStr();
-  const activeTreat=state.health.filter(isTreatmentActive).length;
-  const rdv7=state.events.filter(e=>e.category==='rdv'&&e.date&&daysBetween(e.date,today)>=0&&daysBetween(e.date,today)<=7).length;
-  const openTasks=(state.tasks||[]).filter(t=>!t.done).length;
   const greet=`<div style="margin:2px 0 14px"><div style="font-size:22px;font-weight:800">Bonjour 👋</div><div style="color:var(--muted);text-transform:capitalize">${esc(dateStr)}</div></div>`;
-  const stats=`<div class="stats"><div class="stat accent"><div class="num">${state.members.length}</div><div class="lbl">Membres</div></div><div class="stat amber" data-go="health"><div class="num">${activeTreat}</div><div class="lbl">Soucis en cours</div></div><div class="stat green" data-go="calendar"><div class="num">${rdv7}</div><div class="lbl">RDV (7 j)</div></div><div class="stat violet" data-go="tasks"><div class="num">${openTasks}</div><div class="lbl">Tâches à faire</div></div></div>`;
+  if(!state.members.length)return `${greet}<div class="empty"><div class="big">👋</div>Bienvenue ! Ajoute le premier membre de la famille pour commencer.<div class="list-add" style="justify-content:center;margin-top:14px"><button class="btn primary" data-go="members">👥 Aller à Membres</button></div></div>`;
+  const lb=state.settings&&state.settings.lastBackup;const bdays=lb?Math.floor((Date.now()-new Date(lb).getTime())/86400000):null;
+  let backupNote='';
+  if(!lb||bdays>21){backupNote=`<div class="reminders" style="background:var(--accent-weak);border-color:var(--accent);margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>💾</span><span style="flex:1;color:var(--text)">${lb?`Dernière sauvegarde il y a ${bdays} jours.`:'Fais une première sauvegarde de sécurité.'} Garde une copie dans iCloud.</span><button class="btn primary sm" id="homeBackup">Sauvegarder</button></div></div>`;}
   const up=upcomingItems();
   const upHtml=up.length?`<div class="card">${up.slice(0,8).map(u=>`<div style="display:flex;gap:10px;padding:8px 0;align-items:flex-start;border-bottom:1px solid var(--border);${u.urgent?'font-weight:700':''}"><span>${u.icon}</span><span style="flex:1">${esc(u.text)}</span><span style="color:var(--muted);font-size:13px;white-space:nowrap">${esc(u.lbl)}</span></div>`).join('')}</div>`:`<div class="empty" style="padding:24px"><div class="big">🗓️</div>Rien de prévu dans les 7 prochains jours</div>`;
-  let cards=state.members.map(m=>{const active=state.health.filter(h=>h.memberId===m.id&&isTreatmentActive(h)).length;const chip=active>0?`<span class="chip care">⚠ ${active} en cours</span>`:`<span class="chip ok">✓ En forme</span>`;return `<div class="member-card" data-member="${m.id}">${avatarHTML(m)}<div class="name">${esc(m.name)}</div><div class="age">${ageText(m.dob)}</div>${chip}</div>`;}).join('');
-  cards+=`<button class="add-tile" id="addMember"><span class="plus">+</span>Ajouter un membre</button>`;
-  if(!state.members.length)return `${greet}<div class="empty"><div class="big">👋</div>Bienvenue ! Ajoute le premier membre de la famille pour commencer.</div><div class="grid">${cards}</div>`;
+  let schoolHtml='';const td=todaySchoolDay();
+  if(td){const parts=[];state.members.forEach(m=>{const tt=(state.timetables&&state.timetables[m.id])||[];const slots=tt.filter(s=>s.day===td).sort((a,b)=>a.start.localeCompare(b.start));if(slots.length)parts.push(`<div style="font-weight:700;margin-bottom:4px">${esc(m.name.split(' ')[0])}</div>`+slots.map(s=>`<div style="display:flex;gap:10px;padding:3px 0"><span style="color:var(--muted);font-size:13px;min-width:92px">${esc(s.start)}–${esc(s.end)}</span><span>${esc(s.subject)}${s.detail?' · '+esc(s.detail):''}</span></div>`).join(''));});if(parts.length)schoolHtml=`<h2 class="section">📚 Aujourd'hui à l'école</h2><div class="card">${parts.join('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">')}</div>`;}
   const todo=(state.tasks||[]).filter(t=>!t.done).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
   let tasksHtml='';
   if(todo.length){
     tasksHtml=`<h2 class="section">✓ Tâches à faire</h2>`+todo.slice(0,5).map(t=>{const badge=t.due?`<span class="chip ${daysBetween(t.due,today)<0?'care':'ok'}" style="margin-left:4px">${daysBetween(t.due,today)<0?'En retard':daysBetween(t.due,today)===0?'Auj.':daysBetween(t.due,today)===1?'Demain':fmtDate(t.due)}</span>`:'';return `<div class="task-item"><button class="task-check" data-toggletask="${t.id}"></button><div class="task-body" data-go="tasks"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${t.assignee?memberChip(t.assignee):'<span class="task-who">👪 Tout le monde</span>'}${badge}</div></div></div>`;}).join('')+(todo.length>5?`<button class="btn ghost sm" data-go="tasks" style="margin-top:2px">Voir les ${todo.length} tâches →</button>`:'');
   }
-  const lb=state.settings&&state.settings.lastBackup;const bdays=lb?Math.floor((Date.now()-new Date(lb).getTime())/86400000):null;
-  let backupNote='';
-  if(!lb||bdays>21){backupNote=`<div class="reminders" style="background:var(--accent-weak);border-color:var(--accent);margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>💾</span><span style="flex:1;color:var(--text)">${lb?`Dernière sauvegarde il y a ${bdays} jours.`:'Fais une première sauvegarde de sécurité.'} Garde une copie dans iCloud.</span><button class="btn primary sm" id="homeBackup">Sauvegarder</button></div></div>`;}
-  let schoolHtml='';const td=todaySchoolDay();
-  if(td){const parts=[];state.members.forEach(m=>{const tt=(state.timetables&&state.timetables[m.id])||[];const slots=tt.filter(s=>s.day===td).sort((a,b)=>a.start.localeCompare(b.start));if(slots.length)parts.push(`<div style="font-weight:700;margin-bottom:4px">${esc(m.name.split(' ')[0])}</div>`+slots.map(s=>`<div style="display:flex;gap:10px;padding:3px 0"><span style="color:var(--muted);font-size:13px;min-width:92px">${esc(s.start)}–${esc(s.end)}</span><span>${esc(s.subject)}${s.detail?' · '+esc(s.detail):''}</span></div>`).join(''));});if(parts.length)schoolHtml=`<h2 class="section">📚 Aujourd'hui à l'école</h2><div class="card">${parts.join('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">')}</div>`;}
-  return `${greet}${backupNote}${stats}<h2 class="section">À venir (7 jours)</h2>${upHtml}${schoolHtml}${tasksHtml}<h2 class="section">Membres de la famille</h2><div class="grid">${cards}</div>`;
+  return `${greet}${backupNote}<h2 class="section">À venir (7 jours)</h2>${upHtml}${schoolHtml}${tasksHtml}`;
+}
+function renderMembers(){
+  let cards=state.members.map(m=>{const active=state.health.filter(h=>h.memberId===m.id&&isTreatmentActive(h)).length;const chip=active>0?`<span class="chip care">⚠ ${active} en cours</span>`:`<span class="chip ok">✓ En forme</span>`;return `<div class="member-card" data-member="${m.id}">${avatarHTML(m)}<div class="name">${esc(m.name)}</div><div class="age">${ageText(m.dob)}</div>${chip}</div>`;}).join('');
+  cards+=`<button class="add-tile" id="addMember"><span class="plus">+</span>Ajouter un membre</button>`;
+  const title=state.members.length?`<h2 class="section">Membres de la famille</h2>`:`<div class="empty"><div class="big">👋</div>Ajoute le premier membre de la famille pour commencer.</div>`;
+  return `${title}<div class="grid">${cards}</div>`;
+}
+function renderCourses(){
+  const list=state.courses||[];
+  const todo=list.filter(c=>!c.done).sort((a,b)=>(a.created||'').localeCompare(b.created||''));
+  const done=list.filter(c=>c.done).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
+  const row=c=>`<div class="task-item ${c.done?'done':''}"><button class="task-check ${c.done?'on':''}" data-togglecourse="${c.id}">${c.done?'✓':''}</button><div class="task-body"><div class="task-title">${esc(c.name)}${c.qty?`<span class="qchip">× ${esc(c.qty)}</span>`:''}</div></div><button class="btn danger sm" data-delcourse="${c.id}">✕</button></div>`;
+  const form=`<div class="course-add"><input class="art" id="cArt" placeholder="Ex : Lait, pain, pommes…" autocomplete="off"><input class="qty" id="cQty" placeholder="Qté" autocomplete="off"><button class="btn primary" id="cAdd">Ajouter</button></div>`;
+  let html=form;
+  if(!list.length)return html+`<div class="empty"><div class="big">🛒</div>Ta liste de courses est vide.<br>Ajoute ce qu'il faut acheter 👆</div>`;
+  html+=`<div class="course-cat">À acheter${todo.length?` · ${todo.length}`:''}</div>`;
+  html+=todo.length?todo.map(row).join(''):`<div class="empty" style="padding:20px">Tout est acheté 🎉</div>`;
+  if(done.length){
+    html+=`<div class="course-cat" style="display:flex;justify-content:space-between;align-items:center">Déjà pris · ${done.length}<button class="btn ghost sm" id="clearCourses">Vider</button></div>`;
+    html+=done.map(row).join('');
+  }
+  return html;
 }
 
 /* ---------------- Santé globale ---------------- */
@@ -723,7 +750,7 @@ function bind(){
   qa('[data-go]').forEach(el=>el.onclick=()=>{const g=el.dataset.go;if(g==='calendar'){const n=new Date();view={name:'calendar',y:n.getFullYear(),m:n.getMonth(),mode:'mois'};}else view={name:g};setNav();render();});
   const hb=q('#homeBackup');if(hb)hb.onclick=()=>saveToFile();
   const add=q('#addMember');if(add)add.onclick=()=>memberModal();
-  const back=q('#back');if(back)back.onclick=()=>{view={name:'home'};setNav();render();};
+  const back=q('#back');if(back)back.onclick=()=>{view={name:'members'};setNav();render();};
   qa('.tabs button').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render();});
   const ah=q('#addHealth');if(ah)ah.onclick=()=>healthModal(view.id);
   qa('[data-addmed]').forEach(b=>b.onclick=()=>medModal(b.dataset.addmed));
@@ -762,6 +789,14 @@ function bind(){
   qa('[data-toggletask]').forEach(b=>b.onclick=()=>{const t=state.tasks.find(x=>x.id===b.dataset.toggletask);if(t){t.done=!t.done;t.doneAt=t.done?new Date().toISOString():'';saveState();render();}});
   qa('[data-edittask]').forEach(b=>b.onclick=()=>taskModal(b.dataset.edittask));
   qa('[data-deltask]').forEach(b=>b.onclick=()=>{if(confirm('Supprimer cette tâche ?')){state.tasks=state.tasks.filter(x=>x.id!==b.dataset.deltask);saveState();render();}});
+  // courses
+  const addCourse=()=>{const art=q('#cArt');if(!art)return;const name=art.value.trim();if(!name){art.focus();return;}const qty=(q('#cQty').value||'').trim();state.courses=state.courses||[];state.courses.push({id:uid(),name,qty,done:false,created:new Date().toISOString()});saveState();render();const n=q('#cArt');if(n)n.focus();};
+  const cAdd=q('#cAdd');if(cAdd)cAdd.onclick=addCourse;
+  const cArt=q('#cArt');if(cArt)cArt.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addCourse();}};
+  const cQty=q('#cQty');if(cQty)cQty.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addCourse();}};
+  qa('[data-togglecourse]').forEach(b=>b.onclick=()=>{const c=(state.courses||[]).find(x=>x.id===b.dataset.togglecourse);if(c){c.done=!c.done;c.doneAt=c.done?new Date().toISOString():'';saveState();render();}});
+  qa('[data-delcourse]').forEach(b=>b.onclick=()=>{state.courses=(state.courses||[]).filter(x=>x.id!==b.dataset.delcourse);saveState();render();});
+  const clearC=q('#clearCourses');if(clearC)clearC.onclick=()=>{if(confirm('Vider tous les articles déjà achetés ?')){state.courses=(state.courses||[]).filter(c=>!c.done);saveState();render();}};
   const pm=q('#prevM');if(pm)pm.onclick=()=>{let m=view.m-1,y=view.y;if(m<0){m=11;y--;}view.m=m;view.y=y;render();};
   const nm=q('#nextM');if(nm)nm.onclick=()=>{let m=view.m+1,y=view.y;if(m>11){m=0;y++;}view.m=m;view.y=y;render();};
   const tb=q('#todayBtn');if(tb)tb.onclick=()=>{const n=new Date();view.y=n.getFullYear();view.m=n.getMonth();render();};
@@ -962,7 +997,7 @@ function settingsModal(){
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
     <div class="setrow"><div><div class="st" style="color:var(--red)">🗑️ Réinitialiser</div><div class="sd">Effacer toutes les données (membres, santé, école, tâches…)</div></div><div><button class="btn danger sm" id="resetAll">Effacer tout</button></div></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v21</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v22</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -981,7 +1016,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v21</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v22</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
