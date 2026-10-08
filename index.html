@@ -184,12 +184,13 @@
   .loy-tile.noimg{background:linear-gradient(135deg,var(--accent),#7aa6ff)}
   .loy-tile.noimg .lname{background:none}
   .loy-add{flex:none;width:72px;height:72px;border-radius:12px;border:2px dashed var(--border);background:transparent;color:var(--muted);font-size:24px;font-weight:700;cursor:pointer}
-  .loy-scan{position:fixed;inset:0;background:#fff;z-index:95;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:16px}
+  .loy-scan{position:fixed;inset:0;background:#fff;z-index:95;display:flex;flex-direction:column;overflow:auto}
+  .loy-scan .bar{display:flex;gap:10px;justify-content:flex-end;padding:calc(12px + env(safe-area-inset-top)) 14px 8px;position:sticky;top:0;background:#fff;border-bottom:1px solid #eef0f4}
+  .loy-scan .content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px 18px 32px;text-align:center}
   .loy-scan .store{font-size:20px;font-weight:800;color:#111}
-  .loy-scan img{max-width:100%;max-height:60vh;border-radius:8px;border:1px solid #e2e4ea}
-  .loy-scan .num{font-size:26px;font-weight:800;letter-spacing:3px;color:#111;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;text-align:center}
+  .loy-scan img{max-width:100%;max-height:52vh;border-radius:8px;border:1px solid #e2e4ea}
+  .loy-scan .num{font-size:26px;font-weight:800;letter-spacing:3px;color:#111;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
   .loy-scan .hint2{color:#667;font-size:13px}
-  .loy-scan .bar{display:flex;gap:10px;position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px}
   .overlay{position:fixed;inset:0;background:rgba(10,15,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50}
   @media(min-width:640px){.overlay{align-items:center;padding:20px}}
   .modal{background:var(--surface);width:100%;max-width:540px;border-radius:20px 20px 0 0;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
@@ -243,7 +244,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v24</small></span></div>
+  <div class="brand"><span class="logo">👨‍👩‍👧‍👦</span><span>Famio <small style="opacity:.45;font-size:11px;font-weight:700">v25</small></span></div>
   <div class="spacer"></div>
   <button class="icon-btn" id="btnSettings" title="Réglages">⚙️</button>
   <button class="icon-btn" id="btnOpen" title="Ouvrir un fichier de données">📂</button>
@@ -456,10 +457,12 @@ function loyaltyScan(id){
   const c=(state.loyalty||[]).find(x=>x.id===id);if(!c)return;
   const ov=document.createElement('div');ov.className='loy-scan';
   ov.innerHTML=`<div class="bar"><button class="btn ghost sm" id="loyEdit">Modifier</button><button class="btn primary sm" id="loyClose">Fermer ✕</button></div>
-    <div class="store">${esc(c.store)}</div>
-    ${c.image?`<img src="${c.image}" alt="">`:''}
-    ${c.number?`<div class="num">${esc(c.number)}</div>`:''}
-    <div class="hint2">Présente ce code à la caisse pour le scan 🛒</div>`;
+    <div class="content">
+      <div class="store">${esc(c.store)}</div>
+      ${c.image?`<img src="${c.image}" alt="">`:''}
+      ${c.number?`<div class="num">${esc(c.number)}</div>`:''}
+      <div class="hint2">Présente ce code à la caisse pour le scan 🛒</div>
+    </div>`;
   document.body.appendChild(ov);
   ov.querySelector('#loyClose').onclick=()=>ov.remove();
   ov.querySelector('#loyEdit').onclick=()=>{ov.remove();loyaltyForm(id);};
@@ -1062,7 +1065,7 @@ function settingsModal(){
     <div class="field" style="margin-top:16px"><label>Contact d'urgence (nom)</label><input id="ecName" value="${esc(ec.name)}" placeholder="Ex : Marie (maman)"></div>
     <div class="field"><label>Contact d'urgence (téléphone)</label><input id="ecPhone" value="${esc(ec.phone)}" placeholder="Ex : 06 12 34 56 78"></div>
     <div class="setrow"><div><div class="st" style="color:var(--red)">🗑️ Réinitialiser</div><div class="sd">Effacer toutes les données (membres, santé, école, tâches…)</div></div><div><button class="btn danger sm" id="resetAll">Effacer tout</button></div></div>
-    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v24</div>`;
+    <div class="hint">🔐 Tes données sont chiffrées (AES-256) avec ton mot de passe, sur cet appareil et dans le fichier. ⚠️ Si tu oublies le mot de passe, elles sont <b>définitivement irrécupérables</b> : note-le en lieu sûr.</div><div style="text-align:center;color:var(--muted);font-size:12px;margin-top:16px">Famio · v25</div>`;
   const ov=openModal('Réglages',body,async(ov)=>{s.emergencyContact={name:val(ov,'ecName'),phone:val(ov,'ecPhone')};await saveState();toast('Réglages enregistrés');});
   ov.querySelector('#sSave').onclick=()=>saveToFile();
   ov.querySelector('#sOpen').onclick=()=>{ov.remove();openFromFile();};
@@ -1081,7 +1084,7 @@ function showGate({title,sub,create,onSubmit,allowCancel,secondaryLabel,onSecond
     <button class="btn primary" id="gOk" style="width:260px">${create?'Créer':'Déverrouiller'}</button>
     ${secondaryLabel?`<button class="btn soft" id="gSecond" style="width:260px">${esc(secondaryLabel)}</button>`:''}
     ${allowCancel?`<button class="btn ghost" id="gCancel" style="width:260px">Annuler</button>`:''}
-    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v24</div>`;
+    <div style="position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600">Famio · v25</div>`;
   document.body.appendChild(lk);
   const i1=lk.querySelector('#g1');i1.focus();const err=lk.querySelector('#gErr');
   const submit=async()=>{const pw=i1.value;
